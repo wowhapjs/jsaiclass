@@ -13,4 +13,5 @@ export function createMediaPreloader(options:{
  fetcher?:(url:string,options:RequestInit)=>Promise<Response>;
  createObjectURL?:(blob:Blob)=>string;
  revokeObjectURL?:(url:string)=>void;
+ onPrepared?:(id:number,blobUrl:string)=>void;
 }):MediaPreloader;
