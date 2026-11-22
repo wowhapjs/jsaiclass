@@ -24,12 +24,14 @@ services:
     image: jsaiclass-api:latest
     volumes:
       - ./aiclass1/api/server.mjs:/app/server.mjs:ro
+      - /var/lib/web-manager/site-media/jsaiclass/aiclass1:/media/aiclass1:ro
     restart: unless-stopped
     environment:
       PGHOST: db
       PGUSER: aiclassapp
       PGDATABASE: aiclass1
       PGPASSWORD_FILE: /run/secrets/db_password
+      SITE_MEDIA_DIR: /media/aiclass1
     secrets: [db_password]
     group_add: ['2000']
     depends_on:
