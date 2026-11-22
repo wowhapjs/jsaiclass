@@ -2,7 +2,9 @@ import Fastify from 'fastify';
 import pg from 'pg';
 import {randomBytes,createHash} from 'node:crypto';
 import {Readable} from 'node:stream';
-import {readFileSync} from 'node:fs';
+import {readFileSync,createReadStream} from 'node:fs';
+import {stat} from 'node:fs/promises';
+import {join} from 'node:path';
 const dbPassword=process.env.PGPASSWORD_FILE?readFileSync(process.env.PGPASSWORD_FILE,'utf8').trim():process.env.PGPASSWORD;
 const app=Fastify({logger:true,bodyLimit:16384}),db=new pg.Pool({host:process.env.PGHOST||'db',user:process.env.PGUSER||'aiclassapp',database:process.env.PGDATABASE||'aiclass1',password:dbPassword,max:5});
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -27,9 +29,41 @@ app.get('/api/videos/:id/comments',{preHandler:auth},async(q,r)=>{if(!valid(q.pa
 app.post('/api/videos/:id/comments',{preHandler:auth},async(q,r)=>{const id=valid(q.params.id),body=q.body?.body;if(!id)return error(r,404,'NOT_FOUND');if(typeof body!=='string'||!body.trim()||body.trim().length>500)return error(r,400,'INVALID_COMMENT');if((await db.query('SELECT comments_enabled FROM event_config WHERE id=1')).rows[0]?.comments_enabled===false)return error(r,403,'COMMENTS_DISABLED');let parent=null;if(q.body?.parentId!=null){const p=(await db.query('SELECT id FROM comments WHERE id=$1 AND video_id=$2 AND deleted_at IS NULL',[q.body.parentId,id])).rows[0];if(!p)return error(r,400,'INVALID_PARENT');parent=p.id}const a=(await db.query('INSERT INTO comments(video_id,participant_id,parent_id,body) VALUES($1,$2,$3,$4) RETURNING id,body,parent_id AS "parentId",created_at AS "createdAt"',[id,q.user.id,parent,body.trim()])).rows[0];return r.code(201).send({comment:{...a,author:q.user.display_name,mine:true}})});
 app.delete('/api/comments/:id',{preHandler:auth},async(q,r)=>{if(!/^\d+$/.test(q.params.id))return error(r,400,'INVALID_ID');const x=await db.query("UPDATE comments SET deleted_at=now(),body='' WHERE id=$1 AND participant_id=$2 AND deleted_at IS NULL RETURNING id",[q.params.id,q.user.id]);if(!x.rows.length)return error(r,404,'NOT_FOUND');return {ok:true}});
 app.post('/api/progress',{preHandler:auth},async(q,r)=>{if(!valid(q.body?.videoId))return error(r,400,'INVALID_VIDEO');await db.query('INSERT INTO video_progress(participant_id,last_video_id) VALUES($1,$2) ON CONFLICT(participant_id) DO UPDATE SET last_video_id=excluded.last_video_id,updated_at=now()',[q.user.id,q.body.videoId]);return {ok:true}});
+// Works 1–7 and 10 use authenticated copies of user-provided Drive files.
+const localVideoIds=new Set([1,2,3,4,5,6,7,10]);
+const localMediaDir=process.env.SITE_MEDIA_DIR||'/media/aiclass1';
 const safeUrl=u=>{try{const x=new URL(u);return x.protocol==='https:'&&(x.hostname==='flow-content.google'||x.hostname==='drive.usercontent.google.com'||x.hostname.endsWith('.googleusercontent.com'))}catch{return false}};
-async function source(id){const v=(await db.query('SELECT * FROM videos WHERE id=$1',[id])).rows[0];if(!v)return null;if(v.source_type==='DRIVE')return {v,url:'https://drive.usercontent.google.com/download?export=download&id='+encodeURIComponent(v.source_ref)};const cached=(await db.query("SELECT resolved_url FROM video_source_cache WHERE video_id=$1 AND expires_at>now()+interval '5 minutes'",[id])).rows[0];if(cached&&safeUrl(cached.resolved_url))return {v,url:cached.resolved_url};return {v,url:null}}
-app.post('/api/videos/prepare',{preHandler:auth},async(q)=>{const ids=Array.isArray(q.body?.ids)?q.body.ids.filter(valid).slice(0,2):[];return {prepared:(await Promise.all(ids.map(source))).map((s,i)=>({id:ids[i],ready:!!s?.url}))}});
-app.get('/media/:id',{preHandler:auth},async(q,r)=>{const id=valid(q.params.id);if(!id)return error(r,404,'NOT_FOUND');const s=await source(id);if(!s?.url)return error(r,503,'MEDIA_SOURCE_UNAVAILABLE');const headers={};if(q.headers.range&&/^bytes=\d*-\d*$/.test(q.headers.range))headers.Range=q.headers.range;const u=await fetch(s.url,{headers,redirect:'follow',signal:AbortSignal.timeout(30000)});if(!u.ok||!u.body||!String(u.headers.get('content-type')).includes('video/'))return error(r,502,'UPSTREAM_MEDIA_ERROR');r.code(u.status);for(const k of ['content-type','content-length','content-range','accept-ranges','etag'])if(u.headers.get(k))r.header(k,u.headers.get(k));r.header('Cache-Control','private,max-age=60');return r.send(Readable.fromWeb(u.body))});
+async function source(id){const v=(await db.query('SELECT * FROM videos WHERE id=$1',[id])).rows[0];if(!v)return null;if(v.source_type==='DRIVE')return localVideoIds.has(id)
+ ? {v,url:null,localFile:join(localMediaDir,'product-'+String(id).padStart(2,'0')+'.mp4')}
+ : {v,url:'https://drive.usercontent.google.com/download?export=download&id='+encodeURIComponent(v.source_ref)};const cached=(await db.query("SELECT resolved_url FROM video_source_cache WHERE video_id=$1 AND expires_at>now()+interval '5 minutes'",[id])).rows[0];if(cached&&safeUrl(cached.resolved_url))return {v,url:cached.resolved_url};return {v,url:null}}
+app.post('/api/videos/prepare',{preHandler:auth},async(q)=>{const ids=Array.isArray(q.body?.ids)?q.body.ids.filter(valid).slice(0,2):[];return {prepared:(await Promise.all(ids.map(source))).map((s,i)=>({id:ids[i],ready:!!(s?.url||s?.localFile)}))}});
+app.get('/media/:id',{preHandler:auth},async(q,r)=>{
+ const id=valid(q.params.id);if(!id)return error(r,404,'NOT_FOUND');
+ const s=await source(id);
+ if(s?.localFile){
+  let meta;
+  try{meta=await stat(s.localFile)}catch(e){if(e.code==='ENOENT')return error(r,503,'MEDIA_FILE_UNAVAILABLE');throw e}
+  if(!meta.isFile()||meta.size<100)return error(r,503,'MEDIA_FILE_UNAVAILABLE');
+  const size=meta.size,range=q.headers.range;
+  let start=0,end=size-1;
+  if(range){
+   const m=/^bytes=(\d*)-(\d*)$/.exec(range);
+   if(!m||(!m[1]&&!m[2])){r.header('Content-Range','bytes */'+size);return error(r,416,'INVALID_RANGE')}
+   if(m[1]){start=Number(m[1]);end=m[2]?Math.min(Number(m[2]),size-1):size-1}
+   else{const suffix=Number(m[2]);start=Math.max(0,size-suffix)}
+   if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||start>=size||start>end){r.header('Content-Range','bytes */'+size);return error(r,416,'INVALID_RANGE')}
+   r.code(206).header('Content-Range','bytes '+start+'-'+end+'/'+size);
+  }
+  r.header('Content-Type','video/mp4').header('Content-Length',end-start+1).header('Accept-Ranges','bytes').header('Cache-Control','private,max-age=60');
+  return r.send(createReadStream(s.localFile,{start,end}));
+ }
+ if(!s?.url)return error(r,503,'MEDIA_SOURCE_UNAVAILABLE');
+ const headers={};if(q.headers.range&&/^bytes=\d*-\d*$/.test(q.headers.range))headers.Range=q.headers.range;
+ const u=await fetch(s.url,{headers,redirect:'follow',signal:AbortSignal.timeout(30000)});
+ if(!u.ok||!u.body||!String(u.headers.get('content-type')).includes('video/'))return error(r,502,'UPSTREAM_MEDIA_ERROR');
+ r.code(u.status);
+ for(const k of ['content-type','content-length','content-range','accept-ranges','etag'])if(u.headers.get(k))r.header(k,u.headers.get(k));
+ r.header('Cache-Control','private,max-age=60');return r.send(Readable.fromWeb(u.body));
+});
 app.setErrorHandler((e,q,r)=>{q.log.error(e);if(!r.sent)r.code(500).send({error:'SERVER_ERROR'})});
 try{await db.query('SELECT 1');await app.listen({host:'0.0.0.0',port:3000})}catch(e){app.log.error(e);process.exit(1)}
