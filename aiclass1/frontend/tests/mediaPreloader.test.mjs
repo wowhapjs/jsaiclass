@@ -26,13 +26,16 @@ test('fully fetches N+1 then N+2 and uses prefetched bytes at navigation',async(
  x.preloader.dispose();
  assert.equal(x.revoked.length,3);
 });
-test('at the last work never fetches non-existent videos',async()=>{
+test('last work preloads 1 and 2; previous work preloads 13 then 1',async()=>{
  const x=make();x.preloader.enter(12);
- assert.deepEqual(await x.preloader.prepare(12),[13]);
- assert.equal(x.calls.length,1);
- assert.deepEqual(await x.preloader.prepare(12),[13]);
+ assert.deepEqual(await x.preloader.prepare(12),[13,1]);
+ assert.deepEqual(x.calls.map(c=>c.url),['/aiclass1/media/13','/aiclass1/media/1']);
  x.preloader.enter(13);
- assert.deepEqual(await x.preloader.prepare(13),[]);
+ assert.deepEqual(await x.preloader.prepare(13),[1,2]);
+ assert.deepEqual(x.calls.map(c=>c.url),['/aiclass1/media/13','/aiclass1/media/1','/aiclass1/media/2']);
+ assert.equal(x.preloader.enter(1),'blob:reel/2');
+ assert.deepEqual(await x.preloader.prepare(1),[2,3]);
+ assert.deepEqual(x.preloader.getPreparedIds(),[1,2,3,13]);
  x.preloader.dispose();
 });
 test('fast swipes abort obsolete downloads without storing stale media',async()=>{
@@ -63,5 +66,36 @@ test('retains only previous, active and two next cached works',async()=>{
  x.preloader.enter(4);
  assert.deepEqual(x.preloader.getPreparedIds(),[3,4,5]);
  assert.equal(x.revoked.length,1);
+ x.preloader.dispose();
+});
+
+test('finishing an in-flight next work after swiping into it triggers autoplay handoff',async()=>{
+ let resolveFetch,signal;
+ const events=[];
+ const preloader=createMediaPreloader({
+  urlFor:id=>'media-'+id,
+  fetcher:(_url,opt)=>{signal=opt.signal;return new Promise(resolve=>{resolveFetch=resolve})},
+  createObjectURL:()=> 'blob:ready-2',
+  revokeObjectURL:()=>{},
+  onPrepared:(id,url)=>events.push({id,url})
+ });
+ preloader.enter(1);
+ const preparing=preloader.prepare(1);
+ await Promise.resolve();
+ assert.equal(preloader.enter(2),'media-2');
+ assert.equal(signal.aborted,false);
+ resolveFetch({ok:true,headers:new Headers({'content-type':'video/mp4'}),blob:async()=>new Blob(['video'])});
+ assert.deepEqual(await preparing,[]);
+ assert.deepEqual(events,[{id:2,url:'blob:ready-2'}]);
+ assert.equal(preloader.enter(2),'blob:ready-2');
+ preloader.dispose();
+});
+test('cache pruning retains wrap-around previous and next works',async()=>{
+ const x=make();x.preloader.enter(13);
+ assert.deepEqual(await x.preloader.prepare(13),[1,2]);
+ assert.deepEqual(x.preloader.getPreparedIds(),[1,2]);
+ x.preloader.enter(1);
+ assert.deepEqual(await x.preloader.prepare(1),[2,3]);
+ assert.deepEqual(x.preloader.getPreparedIds(),[1,2,3]);
  x.preloader.dispose();
 });
