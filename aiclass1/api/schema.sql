@@ -13,7 +13,8 @@ CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
 CREATE TABLE IF NOT EXISTS videos (
  id smallint PRIMARY KEY, order_no smallint NOT NULL UNIQUE,
  title varchar(100) NOT NULL, source_type varchar(8) NOT NULL CHECK (source_type IN ('FLOW','DRIVE')),
- source_ref varchar(100) NOT NULL UNIQUE, share_url text NOT NULL
+ source_ref varchar(100) NOT NULL UNIQUE, share_url text NOT NULL,
+ media_uuid uuid
 );
 CREATE TABLE IF NOT EXISTS hearts (
  participant_id bigint NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
@@ -59,3 +60,14 @@ INSERT INTO videos(id,order_no,title,source_type,source_ref,share_url) VALUES
 (12,12,'Product 12','DRIVE','1cJBaxqK_zwKBi05fVVST1N6efws8BoG1','https://drive.google.com/file/d/1cJBaxqK_zwKBi05fVVST1N6efws8BoG1/view?usp=drive_link'),
 (13,13,'Product 13','DRIVE','1inzeJqL6csen7yNo9FoTxbeWz78x5XW0','https://drive.google.com/file/d/1inzeJqL6csen7yNo9FoTxbeWz78x5XW0/view?usp=drive_link')
 ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,source_type=EXCLUDED.source_type,source_ref=EXCLUDED.source_ref,share_url=EXCLUDED.share_url;
+
+-- Stable media IDs are metadata only; playback requires refreshed expiring signed URLs.
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS media_uuid uuid;
+UPDATE videos SET media_uuid='d29cd732-c9c0-4700-a32c-0b5c2ee52225'::uuid WHERE id=1 AND source_type='FLOW';
+UPDATE videos SET media_uuid='3614699a-6f5d-44c3-bef9-bb6efc516a56'::uuid WHERE id=2 AND source_type='FLOW';
+UPDATE videos SET media_uuid='4f81d04d-7405-471f-9d39-1eff5ffcb26f'::uuid WHERE id=3 AND source_type='FLOW';
+UPDATE videos SET media_uuid='de6ef672-9259-41e3-8bf6-23393e0e0717'::uuid WHERE id=4 AND source_type='FLOW';
+UPDATE videos SET media_uuid='951fe3a9-73d7-46ec-851d-61509099303f'::uuid WHERE id=5 AND source_type='FLOW';
+UPDATE videos SET media_uuid='0d92d4cb-10dd-4a7c-9749-145cccef2a86'::uuid WHERE id=6 AND source_type='FLOW';
+UPDATE videos SET media_uuid='50deddb0-d926-47e4-bb06-3f04e638ecef'::uuid WHERE id=7 AND source_type='FLOW';
+UPDATE videos SET media_uuid='2c711204-f38f-43fe-b35a-e767731dfee5'::uuid WHERE id=10 AND source_type='FLOW';
