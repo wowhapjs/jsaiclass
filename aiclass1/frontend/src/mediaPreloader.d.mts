@@ -2,6 +2,8 @@ export type MediaPreloader={
  enter(id:number):string;
  prepare(id:number):Promise<number[]>;
  stop():void;
+ forget(id:number):void;
+ clear():void;
  dispose():void;
  getPreparedIds():number[];
 };
