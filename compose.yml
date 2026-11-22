@@ -20,9 +20,10 @@ services:
     security_opt:
       - no-new-privileges:true
   api:
-    build:
-      context: .
-      dockerfile: aiclass1/api/Dockerfile
+    # Reuse the verified local dependency image; application source comes from the GitHub checkout.
+    image: jsaiclass-api:latest
+    volumes:
+      - ./aiclass1/api/server.mjs:/app/server.mjs:ro
     restart: unless-stopped
     environment:
       PGHOST: db
