@@ -7,7 +7,7 @@ type Video={id:number;orderNo:number;title:string;sourceType:'FLOW'|'DRIVE';shar
 type Comment={id:number;body:string;author:string;createdAt:string;mine:boolean;parentId:number|null};
 type Session={participant:{displayName:string};heartIds:number[];lastVideoId:number;maxHearts:number};
 const BASE='/aiclass1', asset=(name:string)=>BASE+'/assets/'+name+'.svg';
-const screenshotIds=new Set([8,9,11,12,13]);
+const screenshotIds=new Set([1,2,3,4,5,6,7,8,9,10,11,12,13]);
 const hasThumb=(id:number)=>screenshotIds.has(id);
 const thumbnail=(id:number)=>hasThumb(id)?BASE+'/thumbnails/product-'+String(id).padStart(2,'0')+'.jpg':asset('04_ai_chip');
 const strings={
