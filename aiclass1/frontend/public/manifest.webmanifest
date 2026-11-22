@@ -1,0 +1,9 @@
+{
+  "name": "Rwanda Sejong AI · Student Creative Showcase",
+  "short_name": "AI Showcase",
+  "start_url": "/aiclass1/",
+  "scope": "/aiclass1/",
+  "display": "standalone",
+  "background_color": "#f8e9ff",
+  "theme_color": "#a14aec"
+}

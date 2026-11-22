@@ -1,0 +1,14 @@
+{
+  "name": "aiclass1-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs"
+  },
+  "dependencies": {
+    "fastify": "^5.6.0",
+    "pg": "^8.16.3"
+  }
+}
