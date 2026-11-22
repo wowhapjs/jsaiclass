@@ -28,6 +28,7 @@ services:
       PGDATABASE: aiclass1
       PGPASSWORD_FILE: /run/secrets/db_password
     secrets: [db_password]
+    group_add: ['2000']
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +47,7 @@ services:
       POSTGRES_DB: aiclass1
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     secrets: [db_password]
+    group_add: ['2000']
     volumes:
       - aiclass1_db:/var/lib/postgresql/data
       - ./aiclass1/api/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
