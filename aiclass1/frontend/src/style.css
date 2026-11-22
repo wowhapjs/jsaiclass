@@ -10,3 +10,30 @@
 .video-bg video{z-index:2;opacity:0;transition:opacity .16s ease}
 .video-bg video.is-ready{opacity:1}
 @media(prefers-reduced-motion:reduce){.video-bg video{transition:none}}
+
+
+/* Two-card vertical motion: a still of the departing work slides away as the next work arrives. */
+.feed-scroll{position:relative;isolation:isolate}
+.video-pane.reel-enter-up{animation:reel-enter-up 300ms cubic-bezier(.22,.7,.15,1) both}
+.video-pane.reel-enter-down{animation:reel-enter-down 300ms cubic-bezier(.22,.7,.15,1) both}
+.reel-outgoing{position:absolute;inset:0;z-index:8;pointer-events:none;background:#241438;overflow:hidden}
+.reel-outgoing img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.reel-outgoing-shade{position:absolute;inset:0;background:linear-gradient(transparent 65%,#140b27c4)}
+.reel-outgoing strong{position:absolute;bottom:calc(65px + env(safe-area-inset-bottom));left:22px;font:800 30px Outfit,system-ui,sans-serif;color:white;text-shadow:0 3px 18px #18092e}
+.reel-outgoing.reel-leave-up{animation:reel-leave-up 300ms cubic-bezier(.22,.7,.15,1) both}
+.reel-outgoing.reel-leave-down{animation:reel-leave-down 300ms cubic-bezier(.22,.7,.15,1) both}
+@keyframes reel-enter-up{from{transform:translate3d(0,100%,0);opacity:.88}to{transform:translate3d(0,0,0);opacity:1}}
+@keyframes reel-enter-down{from{transform:translate3d(0,-100%,0);opacity:.88}to{transform:translate3d(0,0,0);opacity:1}}
+@keyframes reel-leave-up{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-100%,0)}}
+@keyframes reel-leave-down{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,100%,0)}}
+/* Playback controls remain available if a mobile browser refuses background autoplay. */
+.playback-overlay{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-width:145px;max-width:75%;pointer-events:none;transition:opacity .16s ease}
+.playback-button{pointer-events:auto;display:grid;place-items:center;width:74px;height:74px;padding:0;border-radius:50%;background:#24112bc7;border:2px solid #ffffffa6;color:white;box-shadow:0 10px 32px #14031d8a;backdrop-filter:blur(9px);font-size:29px;line-height:1;touch-action:manipulation;cursor:pointer}
+.playback-button span{margin-left:2px}
+.playback-button:focus-visible{outline:3px solid #ffaddf;outline-offset:4px}
+.playback-spinner{width:40px;height:40px;border-radius:50%;border:4px solid #ffffff55;border-top-color:#ffffff;animation:reel-spin .85s linear infinite;filter:drop-shadow(0 1px 4px #150e2b)}
+@keyframes reel-spin{to{transform:rotate(360deg)}}
+.playback-message{padding:6px 12px;border-radius:20px;background:#160820bd;color:white;text-align:center;font-size:13px;font-weight:700;text-shadow:0 1px 3px #12091f}
+.playback-overlay.is-playing{opacity:0}
+.playback-overlay.is-playing:focus-within,.video-pane:hover .playback-overlay.is-playing{opacity:1}
+@media(prefers-reduced-motion:reduce){.video-pane.reel-enter-up,.video-pane.reel-enter-down{animation:none}.reel-outgoing{display:none}.playback-spinner{animation:none;border-color:#fff6;border-top-color:#fff}.playback-overlay{transition:none}}
