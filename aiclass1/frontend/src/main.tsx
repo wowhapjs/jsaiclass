@@ -37,7 +37,7 @@ function App(){
   onPrepared:(id,url)=>{
    // A swipe can arrive before the next video's download finishes.
    // Reuse the completed bytes immediately if the active video is still waiting.
-   if(id===activeRef.current&&wantsPlay.current&&player.current?.paused)setCurrentMediaSrc(url);
+   if(id===activeRef.current&&wantsPlay.current&&player.current?.paused){autoplayBlocked.current=false;setPlayback('loading');setCurrentMediaSrc(url)}
   }
  }));
  useEffect(()=>()=>mediaPreloader.dispose(),[mediaPreloader]);
