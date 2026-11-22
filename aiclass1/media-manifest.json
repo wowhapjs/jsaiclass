@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "mediaDir": "/var/lib/web-manager/site-media/jsaiclass/aiclass1",
+  "source": "Authenticated Google Drive downloads (site-admin import 2026-11-22)",
+  "entries": [
+    {
+      "id": 1,
+      "title": "Product 01",
+      "driveId": "1Zh23cFQYlt-jCXiCSgKAAE1ijUWt-0Nn",
+      "file": "product-01.mp4",
+      "bytes": 4998664,
+      "sha256": "e70d9690cf291481cc681b0b2042618ee52250134190affe59d461cd60e9b6b6"
+    },
+    {
+      "id": 2,
+      "title": "Product 02",
+      "driveId": "1ny61flJI7jiE1iOlNS1CXiNE8Lj-rmCy",
+      "file": "product-02.mp4",
+      "bytes": 2583371,
+      "sha256": "71796397b823bee9f16d545b700fccbd0bc2939e65b9f8fa8cae4363b251517a"
+    },
+    {
+      "id": 3,
+      "title": "Product 03",
+      "driveId": "1oMvVuEwy5MYcyisNDAdE8-zDijwreG5f",
+      "file": "product-03.mp4",
+      "bytes": 2500025,
+      "sha256": "b00857bf9e24f794deec7f5a28f17d0317d88d60a71b7b0d5c089b4fab06395c"
+    },
+    {
+      "id": 4,
+      "title": "Product 04",
+      "driveId": "1-0d5idQ-XoyD7JDQs4ojH2QpkY-zvQ_N",
+      "file": "product-04.mp4",
+      "bytes": 5661305,
+      "sha256": "75b0ad62430bd1fd52f13711dcda65c72816722f894962d5de05eadc521e44d4"
+    },
+    {
+      "id": 5,
+      "title": "Product 05",
+      "driveId": "132VU4R12ljmjKVzHd_Bsbn-6f8aIsC9b",
+      "file": "product-05.mp4",
+      "bytes": 2932559,
+      "sha256": "e6b827847cc1103b1638a08fd156fd26b8f328979cb696534ee4615e683e1024"
+    },
+    {
+      "id": 6,
+      "title": "Product 06",
+      "driveId": "1v3e-pK7HKiTibS1FpDaMYmhhtslueHMs",
+      "file": "product-06.mp4",
+      "bytes": 2544731,
+      "sha256": "c9d7e4d38df39eb3e821f2bbf8a1ce8cc828667feaeb31611af9bcaf0ca933c0"
+    },
+    {
+      "id": 7,
+      "title": "Product 07",
+      "driveId": "1C0T8_erBlY_gbdMMBJRXyhdi0NzSBlR3",
+      "file": "product-07.mp4",
+      "bytes": 2569611,
+      "sha256": "352512eeaa73536eaeaaf414eeaba7c5db2728fb128cf3737e124a81000367ac"
+    },
+    {
+      "id": 10,
+      "title": "Product 10",
+      "driveId": "1InKf-jbKeibQaKQJZtzvlgctfO390l1l",
+      "file": "product-10.mp4",
+      "bytes": 1915161,
+      "sha256": "d7c1fd9f39dc0a4ec647ced6e28fac3712598729012f13c9e2328142254cc6e6"
+    }
+  ]
+}
