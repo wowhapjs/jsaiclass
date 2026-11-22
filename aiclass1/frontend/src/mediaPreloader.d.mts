@@ -11,7 +11,7 @@ export function createMediaPreloader(options:{
  urlFor:(id:number)=>string;
  maxId?:number;
  fetcher?:(url:string,options:RequestInit)=>Promise<Response>;
- createObjectURL?:(blob:Blob)=>string;
- revokeObjectURL?:(url:string)=>void;
- onPrepared?:(id:number,blobUrl:string)=>void;
+ onPrepared?:(id:number)=>void;
+ firstBytes?:number;
+ secondBytes?:number;
 }):MediaPreloader;
