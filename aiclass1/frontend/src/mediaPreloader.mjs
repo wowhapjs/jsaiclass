@@ -58,10 +58,17 @@ export function createMediaPreloader({
   try{return await run}
   finally{if(request===run)request=null}
  }
- function dispose(){
-  disposed=true;stop();
-  for(const url of ready.values())revokeObjectURL(url);
-  ready.clear();
+ function forget(id){
+  const url=ready.get(id);
+  if(url){ready.delete(id);revokeObjectURL(url)}
  }
- return {enter,prepare,stop,dispose,getPreparedIds:()=>[...ready.keys()].sort((a,b)=>a-b)};
+ function clear(){
+  stop();
+  for(const url of ready.values())revokeObjectURL(url);
+  ready.clear();current=0;
+ }
+ function dispose(){
+  disposed=true;clear();
+ }
+ return {enter,prepare,stop,forget,clear,dispose,getPreparedIds:()=>[...ready.keys()].sort((a,b)=>a-b)};
 }
