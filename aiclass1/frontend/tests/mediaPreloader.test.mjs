@@ -59,6 +59,9 @@ test('retains only previous, active and two next cached works',async()=>{
  x.preloader.enter(2);await x.preloader.prepare(2);
  x.preloader.enter(3);await x.preloader.prepare(3);
  assert.deepEqual(x.preloader.getPreparedIds(),[2,3,4,5]);
+ assert.equal(x.revoked.length,0);
+ x.preloader.enter(4);
+ assert.deepEqual(x.preloader.getPreparedIds(),[3,4,5]);
  assert.equal(x.revoked.length,1);
  x.preloader.dispose();
 });
