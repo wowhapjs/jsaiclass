@@ -7,5 +7,5 @@ export function swipeDirection(dx,dy,threshold=60){
 export function stepVideo(current,delta,total=13){
  if(!Number.isInteger(current)||!Number.isInteger(total)||total<1)return current;
  if(!Number.isFinite(delta)||delta===0)return current;
- return Math.max(1,Math.min(total,current+(delta>0?1:-1)));
+ return ((current-1+(delta>0?1:-1)+total)%total)+1;
 }
