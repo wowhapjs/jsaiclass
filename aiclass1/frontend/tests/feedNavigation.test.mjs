@@ -15,11 +15,18 @@ test('horizontal gestures and tiny movements do not navigate',()=>{
   assert.equal(stepVideo(5,swipeDirection(dx,dy),13),5);
  }
 });
-test('boundaries stay fixed and single step is never an index jump',()=>{
- assert.equal(stepVideo(1,-1,13),1);
- assert.equal(stepVideo(13,1,13),13);
+test('last and first works wrap in both directions without skipping',()=>{
+ assert.equal(stepVideo(1,-1,13),13);
+ assert.equal(stepVideo(13,1,13),1);
+ assert.equal(stepVideo(12,1,13),13);
+ assert.equal(stepVideo(2,-1,13),1);
  assert.equal(stepVideo(1,1,13),2);
  assert.equal(stepVideo(10,1000,13),11);
  assert.equal(stepVideo(10,-500,13),9);
  assert.equal(stepVideo(5,0,13),5);
+});
+test('every forward swipe advances one work cyclically',()=>{
+ let id=1;
+ for(let i=0;i<13;i++)id=stepVideo(id,1,13);
+ assert.equal(id,1);
 });
