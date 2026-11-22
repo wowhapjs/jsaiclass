@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "mediaDir": "/var/lib/web-manager/site-media/jsaiclass/aiclass1",
-  "source": "Authenticated Google Drive downloads (site-admin import 2026-11-22)",
+  "source": "Authenticated Google Drive MP4s stored privately for low-latency playback; Product 10 remuxed with faststart (original backup retained).",
   "entries": [
     {
       "id": 1,
@@ -60,12 +60,52 @@
       "sha256": "352512eeaa73536eaeaaf414eeaba7c5db2728fb128cf3737e124a81000367ac"
     },
     {
+      "id": 8,
+      "title": "Product 08",
+      "driveId": "1D8x7n_v7ccl6miLrCDezYEfFNFlqMgZ5",
+      "file": "product-08.mp4",
+      "bytes": 1162348,
+      "sha256": "d9fb63d2e79917611d963220477bcdec113ed462d840287466b0a675f55fb619"
+    },
+    {
+      "id": 9,
+      "title": "Product 09",
+      "driveId": "1UYpzhgQieIAHxop72mgx0ANSNmYb8Uie",
+      "file": "product-09.mp4",
+      "bytes": 1058533,
+      "sha256": "bdc6f2848630cd9e656a74ec7c9cf05c580b3b6aa99068219560e297db4d6a67"
+    },
+    {
       "id": 10,
       "title": "Product 10",
       "driveId": "1InKf-jbKeibQaKQJZtzvlgctfO390l1l",
       "file": "product-10.mp4",
-      "bytes": 1915161,
-      "sha256": "d7c1fd9f39dc0a4ec647ced6e28fac3712598729012f13c9e2328142254cc6e6"
+      "bytes": 1908993,
+      "sha256": "f0076a935bfc6de56e8ff9916b89d2d9506e10fbd158dce9dc1b641ac6165c78"
+    },
+    {
+      "id": 11,
+      "title": "Product 11",
+      "driveId": "1WU8V24LzEIJaSoOQHrwjqae0jQrNroE7",
+      "file": "product-11.mp4",
+      "bytes": 789604,
+      "sha256": "231fa5669513bfeb922dc18fc4fa30b7bd8ccce4142559767a8b2d2a510368ce"
+    },
+    {
+      "id": 12,
+      "title": "Product 12",
+      "driveId": "1cJBaxqK_zwKBi05fVVST1N6efws8BoG1",
+      "file": "product-12.mp4",
+      "bytes": 780662,
+      "sha256": "2d6af3ae0cb8859316854dbd8d73045b65d7633a108bda616262c69baae483ef"
+    },
+    {
+      "id": 13,
+      "title": "Product 13",
+      "driveId": "1inzeJqL6csen7yNo9FoTxbeWz78x5XW0",
+      "file": "product-13.mp4",
+      "bytes": 1080152,
+      "sha256": "46b682ae264c70da6c8fa94dc2f7836a2c3336f818f7d41359c069535f1889d8"
     }
   ]
 }
