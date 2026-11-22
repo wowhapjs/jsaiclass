@@ -46,16 +46,16 @@ CREATE TABLE IF NOT EXISTS event_config (
 INSERT INTO event_config(id,max_hearts,comments_enabled) VALUES(1,5,true) ON CONFLICT(id) DO NOTHING;
 -- Phone allowlist is imported privately during deployment; never commit personal data.
 INSERT INTO videos(id,order_no,title,source_type,source_ref,share_url) VALUES
-(1,1,'Product 01','FLOW','35c78fe9-bd93-4d78-8f57-b72282251815','https://flow.google.com/shared/video/35c78fe9-bd93-4d78-8f57-b72282251815'),
-(2,2,'Product 02','FLOW','ad31d8ff-aff7-4c0f-a080-0dfe9f912198','https://flow.google.com/shared/video/ad31d8ff-aff7-4c0f-a080-0dfe9f912198'),
-(3,3,'Product 03','FLOW','8c444fb6-f9d8-49f0-b2c7-a4e78f23b238','https://flow.google.com/shared/video/8c444fb6-f9d8-49f0-b2c7-a4e78f23b238'),
-(4,4,'Product 04','FLOW','541c9210-984e-4071-9a72-049e33501f01','https://flow.google.com/shared/video/541c9210-984e-4071-9a72-049e33501f01'),
-(5,5,'Product 05','FLOW','71a6e071-3032-416b-b4e2-a232ed3c5250','https://flow.google.com/shared/video/71a6e071-3032-416b-b4e2-a232ed3c5250'),
-(6,6,'Product 06','FLOW','d64a1ccc-8b37-4fff-b6cd-a34f177c4cec','https://flow.google.com/shared/video/d64a1ccc-8b37-4fff-b6cd-a34f177c4cec'),
-(7,7,'Product 07','FLOW','e5b5d449-5641-457c-9a32-c41b311660e8','https://flow.google.com/shared/video/e5b5d449-5641-457c-9a32-c41b311660e8'),
+(1,1,'Product 01','DRIVE','1Zh23cFQYlt-jCXiCSgKAAE1ijUWt-0Nn','https://drive.google.com/file/d/1Zh23cFQYlt-jCXiCSgKAAE1ijUWt-0Nn/view?usp=drivesdk'),
+(2,2,'Product 02','DRIVE','1ny61flJI7jiE1iOlNS1CXiNE8Lj-rmCy','https://drive.google.com/file/d/1ny61flJI7jiE1iOlNS1CXiNE8Lj-rmCy/view?usp=drivesdk'),
+(3,3,'Product 03','DRIVE','1oMvVuEwy5MYcyisNDAdE8-zDijwreG5f','https://drive.google.com/file/d/1oMvVuEwy5MYcyisNDAdE8-zDijwreG5f/view?usp=drivesdk'),
+(4,4,'Product 04','DRIVE','1-0d5idQ-XoyD7JDQs4ojH2QpkY-zvQ_N','https://drive.google.com/file/d/1-0d5idQ-XoyD7JDQs4ojH2QpkY-zvQ_N/view?usp=drivesdk'),
+(5,5,'Product 05','DRIVE','132VU4R12ljmjKVzHd_Bsbn-6f8aIsC9b','https://drive.google.com/file/d/132VU4R12ljmjKVzHd_Bsbn-6f8aIsC9b/view?usp=drivesdk'),
+(6,6,'Product 06','DRIVE','1v3e-pK7HKiTibS1FpDaMYmhhtslueHMs','https://drive.google.com/file/d/1v3e-pK7HKiTibS1FpDaMYmhhtslueHMs/view?usp=drivesdk'),
+(7,7,'Product 07','DRIVE','1C0T8_erBlY_gbdMMBJRXyhdi0NzSBlR3','https://drive.google.com/file/d/1C0T8_erBlY_gbdMMBJRXyhdi0NzSBlR3/view?usp=drivesdk'),
 (8,8,'Product 08','DRIVE','1D8x7n_v7ccl6miLrCDezYEfFNFlqMgZ5','https://drive.google.com/file/d/1D8x7n_v7ccl6miLrCDezYEfFNFlqMgZ5/view?usp=drive_link'),
 (9,9,'Product 09','DRIVE','1UYpzhgQieIAHxop72mgx0ANSNmYb8Uie','https://drive.google.com/file/d/1UYpzhgQieIAHxop72mgx0ANSNmYb8Uie/view?usp=drive_link'),
-(10,10,'Product 10','FLOW','cdf0390c-ecd3-4a2e-a687-e303d6ae0dd6','https://flow.google.com/shared/video/cdf0390c-ecd3-4a2e-a687-e303d6ae0dd6'),
+(10,10,'Product 10','DRIVE','1InKf-jbKeibQaKQJZtzvlgctfO390l1l','https://drive.google.com/file/d/1InKf-jbKeibQaKQJZtzvlgctfO390l1l/view?usp=drivesdk'),
 (11,11,'Product 11','DRIVE','1WU8V24LzEIJaSoOQHrwjqae0jQrNroE7','https://drive.google.com/file/d/1WU8V24LzEIJaSoOQHrwjqae0jQrNroE7/view?usp=drive_link'),
 (12,12,'Product 12','DRIVE','1cJBaxqK_zwKBi05fVVST1N6efws8BoG1','https://drive.google.com/file/d/1cJBaxqK_zwKBi05fVVST1N6efws8BoG1/view?usp=drive_link'),
 (13,13,'Product 13','DRIVE','1inzeJqL6csen7yNo9FoTxbeWz78x5XW0','https://drive.google.com/file/d/1inzeJqL6csen7yNo9FoTxbeWz78x5XW0/view?usp=drive_link')
@@ -71,3 +71,6 @@ UPDATE videos SET media_uuid='951fe3a9-73d7-46ec-851d-61509099303f'::uuid WHERE 
 UPDATE videos SET media_uuid='0d92d4cb-10dd-4a7c-9749-145cccef2a86'::uuid WHERE id=6 AND source_type='FLOW';
 UPDATE videos SET media_uuid='50deddb0-d926-47e4-bb06-3f04e638ecef'::uuid WHERE id=7 AND source_type='FLOW';
 UPDATE videos SET media_uuid='2c711204-f38f-43fe-b35a-e767731dfee5'::uuid WHERE id=10 AND source_type='FLOW';
+
+-- The eight rehosted Flow works now use Drive file IDs, not Flow's expiring links.
+UPDATE videos SET media_uuid=NULL WHERE source_type='DRIVE' AND media_uuid IS NOT NULL;
