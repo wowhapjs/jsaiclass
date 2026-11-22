@@ -29,8 +29,8 @@ app.get('/api/videos/:id/comments',{preHandler:auth},async(q,r)=>{if(!valid(q.pa
 app.post('/api/videos/:id/comments',{preHandler:auth},async(q,r)=>{const id=valid(q.params.id),body=q.body?.body;if(!id)return error(r,404,'NOT_FOUND');if(typeof body!=='string'||!body.trim()||body.trim().length>500)return error(r,400,'INVALID_COMMENT');if((await db.query('SELECT comments_enabled FROM event_config WHERE id=1')).rows[0]?.comments_enabled===false)return error(r,403,'COMMENTS_DISABLED');let parent=null;if(q.body?.parentId!=null){const p=(await db.query('SELECT id FROM comments WHERE id=$1 AND video_id=$2 AND deleted_at IS NULL',[q.body.parentId,id])).rows[0];if(!p)return error(r,400,'INVALID_PARENT');parent=p.id}const a=(await db.query('INSERT INTO comments(video_id,participant_id,parent_id,body) VALUES($1,$2,$3,$4) RETURNING id,body,parent_id AS "parentId",created_at AS "createdAt"',[id,q.user.id,parent,body.trim()])).rows[0];return r.code(201).send({comment:{...a,author:q.user.display_name,mine:true}})});
 app.delete('/api/comments/:id',{preHandler:auth},async(q,r)=>{if(!/^\d+$/.test(q.params.id))return error(r,400,'INVALID_ID');const x=await db.query("UPDATE comments SET deleted_at=now(),body='' WHERE id=$1 AND participant_id=$2 AND deleted_at IS NULL RETURNING id",[q.params.id,q.user.id]);if(!x.rows.length)return error(r,404,'NOT_FOUND');return {ok:true}});
 app.post('/api/progress',{preHandler:auth},async(q,r)=>{if(!valid(q.body?.videoId))return error(r,400,'INVALID_VIDEO');await db.query('INSERT INTO video_progress(participant_id,last_video_id) VALUES($1,$2) ON CONFLICT(participant_id) DO UPDATE SET last_video_id=excluded.last_video_id,updated_at=now()',[q.user.id,q.body.videoId]);return {ok:true}});
-// Works 1–7 and 10 use authenticated copies of user-provided Drive files.
-const localVideoIds=new Set([1,2,3,4,5,6,7,10]);
+// All 13 works use private, authenticated, read-only media copies to avoid Drive-origin startup delays.
+const localVideoIds=new Set([1,2,3,4,5,6,7,8,9,10,11,12,13]);
 const localMediaDir=process.env.SITE_MEDIA_DIR||'/media/aiclass1';
 const safeUrl=u=>{try{const x=new URL(u);return x.protocol==='https:'&&(x.hostname==='flow-content.google'||x.hostname==='drive.usercontent.google.com'||x.hostname.endsWith('.googleusercontent.com'))}catch{return false}};
 async function source(id){const v=(await db.query('SELECT * FROM videos WHERE id=$1',[id])).rows[0];if(!v)return null;if(v.source_type==='DRIVE')return localVideoIds.has(id)
@@ -54,7 +54,7 @@ app.get('/media/:id',{preHandler:auth},async(q,r)=>{
    if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||start>=size||start>end){r.header('Content-Range','bytes */'+size);return error(r,416,'INVALID_RANGE')}
    r.code(206).header('Content-Range','bytes '+start+'-'+end+'/'+size);
   }
-  r.header('Content-Type','video/mp4').header('Content-Length',end-start+1).header('Accept-Ranges','bytes').header('Cache-Control','private,max-age=60');
+  r.header('Content-Type','video/mp4').header('Content-Length',end-start+1).header('Accept-Ranges','bytes').header('Cache-Control','private,max-age=900');
   return r.send(createReadStream(s.localFile,{start,end}));
  }
  if(!s?.url)return error(r,503,'MEDIA_SOURCE_UNAVAILABLE');
@@ -63,7 +63,7 @@ app.get('/media/:id',{preHandler:auth},async(q,r)=>{
  if(!u.ok||!u.body||!String(u.headers.get('content-type')).includes('video/'))return error(r,502,'UPSTREAM_MEDIA_ERROR');
  r.code(u.status);
  for(const k of ['content-type','content-length','content-range','accept-ranges','etag'])if(u.headers.get(k))r.header(k,u.headers.get(k));
- r.header('Cache-Control','private,max-age=60');return r.send(Readable.fromWeb(u.body));
+ r.header('Cache-Control','private,max-age=900');return r.send(Readable.fromWeb(u.body));
 });
 app.setErrorHandler((e,q,r)=>{q.log.error(e);if(!r.sent)r.code(500).send({error:'SERVER_ERROR'})});
 try{await db.query('SELECT 1');await app.listen({host:'0.0.0.0',port:3000})}catch(e){app.log.error(e);process.exit(1)}
