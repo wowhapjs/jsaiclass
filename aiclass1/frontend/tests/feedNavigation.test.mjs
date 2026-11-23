@@ -20,7 +20,7 @@ test('last and first works wrap in both directions without skipping',()=>{
  assert.equal(stepVideo(13,1,14),14);
  assert.equal(stepVideo(14,1,14),1);
  assert.equal(stepVideo(14,-1,14),13);
- assert.equal(stepVideo(12,1,14),14);
+ assert.equal(stepVideo(12,1,14),13);
  assert.equal(stepVideo(2,-1,14),1);
  assert.equal(stepVideo(1,1,14),2);
  assert.equal(stepVideo(10,1000,14),11);
