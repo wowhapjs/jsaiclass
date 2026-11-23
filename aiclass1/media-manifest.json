@@ -1,7 +1,7 @@
 {
-  "version": 2,
+  "version": 3,
   "mediaDir": "/var/lib/web-manager/site-media/jsaiclass/aiclass1",
-  "source": "Authenticated Google Drive MP4s stored privately for low-latency playback; Product 10 remuxed with faststart (original backup retained).",
+  "source": "Authenticated Google Drive MP4s stored privately for low-latency playback; Products 10 and 14 faststart remuxed; Drive originals unchanged.",
   "entries": [
     {
       "id": 1,
@@ -106,6 +106,14 @@
       "file": "product-13.mp4",
       "bytes": 1080152,
       "sha256": "46b682ae264c70da6c8fa94dc2f7836a2c3336f818f7d41359c069535f1889d8"
+    },
+    {
+      "id": 14,
+      "title": "Product 14",
+      "driveId": "19YAQdYdnw5THIgEbJCV3Lncd-IKbbTGf",
+      "file": "product-14.mp4",
+      "bytes": 3415828,
+      "sha256": "28cbb33530af8602b753f62e598603a8db2b7495b3faa9076d15f7dfca80ab40"
     }
   ]
 }
