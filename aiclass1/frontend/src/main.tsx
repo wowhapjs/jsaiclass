@@ -149,6 +149,17 @@ function App(){
  async function sendComment(e:React.FormEvent){e.preventDefault();if(!draft.trim()||busy)return;setBusy(true);try{const r=await post('/videos/'+active+'/comments',{body:draft,parentId:replyTo});setComments(v=>[r.comment,...v]);setTeaser(v=>[r.comment,...v].slice(0,2));setVideos(v=>v.map(x=>x.id===active?{...x,commentCount:x.commentCount+1}:x));setDraft('');setReplyTo(null)}catch(e:any){showToast(e.message)}finally{setBusy(false)}}
  async function deleteComment(id:number){try{await api('/comments/'+id,{method:'DELETE'});setComments(c=>c.filter(x=>x.id!==id));setTeaser(c=>c.filter(x=>x.id!==id));setVideos(v=>v.map(x=>x.id===active?{...x,commentCount:Math.max(0,x.commentCount-1)}:x))}catch(e:any){showToast(e.message)}}
  const chosen=videos.filter(v=>hearted(v.id)),activeVideo=videos.find(v=>v.id===active);
+ // The approved Home reference centers an enlarged work card, not a fixed third DOM child.
+ useEffect(()=>{
+  if(page!=='home'||!railRef.current)return;
+  const rail=railRef.current,frame=requestAnimationFrame(()=>{
+   const card=rail.querySelectorAll<HTMLElement>('.preview-card')[featuredIndex];
+   if(!card)return;
+   const target=card.offsetLeft-rail.offsetLeft+card.offsetWidth/2-rail.clientWidth/2;
+   rail.scrollTo({left:Math.max(0,target),behavior:'instant' as ScrollBehavior});
+  });
+  return()=>cancelAnimationFrame(frame);
+ },[page]);
  const Header=({light=false}:{light?:boolean})=><header className={'header '+(light?'light':'')}><div className="brand"><img src={asset('01_sejong_mark')} alt="" /><span>Rwanda Sejong Institute<small>르완다 세종학당&nbsp; | &nbsp;Rwanda</small></span></div><div className="header-ornaments" aria-hidden="true"><img src={asset('20_sunburst')} alt=""/><img src={asset('04_ai_chip')} alt=""/></div><div className="lang">{(['en','ko','rw'] as Lang[]).map(l=><button aria-pressed={lang===l} className={lang===l?'selected':''} key={l} onClick={()=>setLanguage(l)}>{l==='en'?'English':l==='ko'?'한국어':'Kinyarwanda'}</button>)}</div></header>;
  const Decor=()=> <><img className="dec cherry" alt="" src={asset('21_cherry_blossom_branch')}/><img className="dec roof" alt="" src={asset('22_hanok_eaves_lantern')}/><img className="dec hills" alt="" src={asset('24_rwanda_landscape')}/><img className="dec wave" alt="" src={asset('09_wave_corner')}/><img className="dec textile" alt="" src={asset('10_textile_corner')}/></>;
  if(loading)return <main className="shell center"><span className="spinner"/><p>{t.loading}</p></main>;
