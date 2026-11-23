@@ -124,3 +124,14 @@ body,button,input{font-family:'Nunito','DM Sans',system-ui,sans-serif}
 @media(prefers-reduced-motion:reduce){
  .home .card-rail .preview-card,.gallery-dots button:after{transition:none}
 }
+
+/* Approved Option 3 title art: cropped three-language 3D jelly/rainbow logo.
+   Keep semantic H1 through the image's localized alt text. Do not apply text gradient to the image. */
+.home h1.home-title-image{display:block;position:relative;width:100%;max-width:440px;height:clamp(134px,41vw,174px);margin:3px auto 2px;line-height:1;font-size:1rem;letter-spacing:normal;color:inherit;background:none;text-shadow:none;-webkit-text-fill-color:initial;filter:none;overflow:visible}
+.home h1.home-title-image img{display:block;width:100%;height:100%;object-fit:contain;object-position:center center;filter:drop-shadow(0 5px 9px rgba(111,18,111,.17));}
+.home .hero-underline{display:none}
+.home .home-welcome{margin-bottom:3px}
+.home .home-sub{margin-top:2px}
+@media(max-width:390px){.home h1.home-title-image{height:clamp(127px,40vw,157px);margin:0 auto 2px}}
+@media(max-height:740px){.home-content{margin-top:42px}.home h1.home-title-image{height:126px;margin:0 auto}.home .start{margin-bottom:10px}}
+@media(prefers-reduced-motion:reduce){.home h1.home-title-image img{transition:none}}
