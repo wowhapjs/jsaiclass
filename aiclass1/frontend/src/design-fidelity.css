@@ -1,0 +1,126 @@
+/* Final fidelity pass for the six approved Rwanda Sejong AI showcase layouts.
+   Structural UI remains interactive and localized; only CLEAN_V2 standalone graphics
+   are used, never a flattened reference screenshot. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&display=swap');
+:root{font-family:'Nunito','DM Sans',system-ui,sans-serif}
+body,button,input{font-family:'Nunito','DM Sans',system-ui,sans-serif}
+.fancy,.auth h1,.home h1,.hearts-content h1,.limit-modal h2,.feed-bottom h2{font-family:'Fredoka','Nunito',system-ui,sans-serif;letter-spacing:-.035em}
+.shell{background:radial-gradient(ellipse 84% 28% at 97% 1%,#8fbcff9e,transparent 85%),radial-gradient(ellipse 97% 32% at 2% 23%,#ffc3e7a3,transparent 84%),linear-gradient(160deg,#efdcff 0%,#fff1fb 50%,#f8e5fd 100%)}
+.brand{font-weight:900}
+.brand small,.feed-brand small{font-weight:700}
+.lang button{font-size:11px;letter-spacing:-.012em;box-shadow:0 3px 11px #8241ac1d}
+.lang button:focus-visible{outline:3px solid #9a35d8;outline-offset:2px}
+.btn{font-weight:900}
+.btn img{width:26px;height:26px;object-fit:contain;vertical-align:middle;filter:brightness(0) invert(1);margin-right:4px}
+.header-ornaments{pointer-events:none}
+/* Login: canonical flags, editorial headline and organic cultural scene. */
+.auth .sparkle{display:flex;justify-content:center;align-items:center;gap:5px}
+.auth .sparkle img{width:22px;height:23px;object-fit:contain}
+.auth .sparkle img:last-child{transform:scale(.7) rotate(18deg)}
+.auth h1{font-size:clamp(43px,11.1vw,61px);line-height:.93;margin:9px auto 15px;font-weight:700;max-width:385px}
+.auth-country-pill{gap:4px;padding:4px 13px 4px 9px;min-height:38px;white-space:nowrap;font-weight:900;letter-spacing:-.02em}
+.auth-country-pill img{width:34px;height:27px;object-fit:contain;flex-shrink:0}
+.auth-country-pill>span{color:#ac4ecc;font-size:16px;padding:0 2px}
+.auth-content{padding-bottom:5px}
+.auth-card h2{font-family:'Fredoka','Nunito',system-ui,sans-serif;font-weight:700;font-size:clamp(28px,7vw,34px)}
+.auth-card>p{font-weight:700}
+.auth .phone-row{box-shadow:0 4px 13px #9546c529;border-color:#c8a3e7}
+.phone-row span{display:flex;align-items:center;gap:4px;white-space:nowrap;font-weight:900;padding:0 7px}
+.phone-row span img{width:31px;height:27px;object-fit:contain;flex-shrink:0}
+.phone-row span b{font-size:11px;color:#9b71b8;margin-left:2px}
+.phone-row input{width:100%;min-width:0}
+.auth-card .btn{box-shadow:0 8px 18px #ed54b958}
+.auth .title-sunburst{width:34px;height:34px}
+.auth .notice{box-shadow:0 4px 13px #b874d716}
+.auth-scene-gorilla,.home-art-gorilla{filter:drop-shadow(0 7px 13px #72368e55)}
+/* Home: true scroll-linked feature card and accessible position indicators. */
+.home-content{width:100%}
+.home-welcome strong{font-family:'Fredoka','Nunito',sans-serif;font-weight:600;font-size:17px}
+.home h1{font-size:clamp(42px,10.8vw,64px);line-height:.95;letter-spacing:-.032em;font-weight:700;max-width:435px}
+.home .hero-underline{height:10px;margin-top:4px}
+.home-sub{font-weight:800}
+.home .start{display:flex;justify-content:center;align-items:center;gap:6px;position:relative}
+.home .start span{position:absolute;right:18px;font-size:22px;float:none}
+.home .start img{width:25px;height:25px;filter:brightness(0) invert(1);margin:0 2px 0 0}
+.works-head strong{font-weight:900;font-size:14px}
+.card-rail{gap:1px;scroll-snap-type:x proximity;scroll-padding-inline:calc(50% - 65px);padding:18px max(7px,calc((100% - 385px)/2)) 21px;min-height:198px}
+.home .card-rail .preview-card{flex:0 0 137px;height:174px;margin-left:-20px;transform:scale(.88);box-shadow:0 6px 19px #54148636;border-radius:16px;transition:transform .2s ease,box-shadow .2s ease,filter .2s ease;scroll-snap-align:center;filter:saturate(.91)}
+.home .card-rail .preview-card:first-child{margin-left:0}
+.home .card-rail .preview-card.is-featured{transform:scale(1.09);z-index:6;box-shadow:0 10px 24px #54148661;filter:saturate(1.12)}
+.home .preview-card strong{font-size:10px;bottom:8px}
+.gallery-dots{gap:2px;align-items:center;justify-content:center;margin-top:-2px}
+.gallery-dots button{appearance:none;border:0;background:transparent;width:19px;height:20px;display:grid;place-items:center;padding:0;cursor:pointer}
+.gallery-dots button:after{content:'';display:block;width:6px;height:6px;border-radius:50%;background:#c8a3dd;transition:transform .16s,background .16s}
+.gallery-dots button.active:after{width:8px;height:8px;background:#ed3b9e;transform:scale(1.12)}
+.gallery-dots button:focus-visible{outline:2px solid #a14ce8;outline-offset:1px}
+.home-art-gorilla,.home-art-mountain{pointer-events:none}
+/* Feed: canonical navigation & bell, polished counters and balanced tool rail. */
+.feed-top .icon-btn{display:grid;place-items:center;background:transparent;border:none;padding:0}
+.feed-top .icon-btn img{width:37px;height:37px;object-fit:contain}
+.feed-profile{background:#f5eafeed;border:1px solid #ffffffda;box-shadow:0 2px 9px #1d082c66}
+.feed-profile:after{display:none}
+.feed-profile img{width:25px;height:25px;object-fit:contain}
+.feed-top{z-index:12}
+.feed-chips{z-index:11;flex-wrap:nowrap}
+.feed-chips .chip-position{font-variant-numeric:tabular-nums}
+.feed-scroll{position:relative}
+.feed-bottom{z-index:5}
+.feed-bottom h2{font-family:'Fredoka','Nunito',system-ui,sans-serif;font-size:clamp(24px,6.1vw,34px);font-weight:700}
+.feed-bottom p{font-weight:650}
+.feed-bottom .work-label{letter-spacing:.01em}
+.work-title-line{gap:9px}
+.title-play-toggle{box-shadow:0 3px 12px #160822aa}
+.actions{gap:11px}
+.actions button:focus-visible{outline:3px solid #ffcbef;outline-offset:3px}
+.actions button img{object-fit:contain}
+.comment-teaser{box-shadow:0 -9px 25px #1b06307a}
+.teaser-head{font-size:13px}
+.teaser-rows{font-size:12px}
+.teaser-empty{margin:14px 0}
+/* Approved comments sheet: video stays visibly present above the panel. */
+.sheet{height:min(58dvh,560px);max-height:calc(100dvh - 105px);background:linear-gradient(158deg,#fff9ff,#f6e5ff 60%,#efd9ff);box-shadow:0 -17px 55px #17062d85}
+.sheet-head strong{font-family:'Fredoka','Nunito',sans-serif;font-weight:600;font-size:19px}
+.sheet-head button,.modal-x{padding:0;display:grid;place-items:center}
+.sheet-head button img,.modal-x img{width:34px;height:34px;object-fit:contain}
+.sheet-head button img{width:32px;height:32px}
+.sheet .teaser-rows{overflow:hidden}
+.composer button[type=submit]{font-size:23px}
+.comment-body{font-weight:650}
+/* Hearts: single brand motif, bold heading and five-card dynamic list. */
+.hearts-toolbar .circle-back{border:none;background:none;padding:0;display:grid;place-items:center}
+.hearts-toolbar .circle-back img{width:43px;height:43px;object-fit:contain}
+.hearts-hero-brand{font-size:12px;gap:5px}
+.hearts-hero-brand span{color:#ffa800}
+.hearts-content h1{color:#56209c;font-weight:700}
+.hearts-content h1>img:first-child{width:45px;height:45px}
+.hearts-content h1 .hearts-title-sun{right:4px}
+.hearts-count{font-family:'Fredoka','Nunito',sans-serif;font-weight:600}
+.hearts-items{gap:11px}
+.heart-item strong{font-family:'Fredoka','Nunito',sans-serif;font-weight:600}
+.heart-item button{font-weight:900}
+.remaining{box-shadow:0 4px 15px #ac71d01f}
+.my-hearts .btn.full{font-size:15px}
+/* Limit modal: gradient heart, rich ornamental frame and distinct buttons. */
+.limit-modal h2{font-family:'Fredoka','Nunito',sans-serif;color:#5d208f;font-weight:700}
+.limit-modal .modal-institute{font-weight:900}
+.limit-modal .picked-row{border:1px solid #ffffffbb}
+.limit-modal .btn{font-weight:900}
+/* Compact and short screens: preserve function without clipping critical actions. */
+@media(max-width:390px){
+ .auth-country-pill{font-size:11px}
+ .auth-country-pill img{width:29px;height:23px}
+ .home .card-rail .preview-card{flex-basis:127px;height:162px}
+ .home h1{font-size:clamp(39px,10.7vw,49px)}
+ .feed-chips span,.feed-chips button{padding:5px 7px;font-size:9px}
+ .feed-bottom h2{font-size:clamp(23px,6vw,29px)}
+ .sheet{height:min(62dvh,560px)}
+}
+@media(max-height:720px){
+ .auth h1{font-size:42px}
+ .home .card-rail .preview-card{height:145px}
+ .home .card-rail{min-height:166px}
+ .sheet{height:min(65dvh,480px)}
+}
+@media(prefers-reduced-motion:reduce){
+ .home .card-rail .preview-card,.gallery-dots button:after{transition:none}
+}
