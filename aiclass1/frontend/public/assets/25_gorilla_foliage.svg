@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" fill="none" role="img" aria-labelledby="title">
+<title id="title">Illustration of a gorilla surrounded by tropical greenery</title>
+<defs>
+<linearGradient id="fur" x1="95" y1="40" x2="270" y2="280" gradientUnits="userSpaceOnUse"><stop stop-color="#545367"/><stop offset=".48" stop-color="#29293d"/><stop offset="1" stop-color="#161828"/></linearGradient>
+<linearGradient id="face" x1="130" y1="102" x2="240" y2="255" gradientUnits="userSpaceOnUse"><stop stop-color="#8a7784"/><stop offset=".45" stop-color="#675568"/><stop offset="1" stop-color="#372e46"/></linearGradient>
+<linearGradient id="leaf" x1="10" y1="230" x2="320" y2="340" gradientUnits="userSpaceOnUse"><stop stop-color="#50c998"/><stop offset="1" stop-color="#176f61"/></linearGradient>
+<filter id="shadow" x="-25%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="13" stdDeviation="11" flood-color="#492352" flood-opacity=".28"/></filter>
+</defs>
+<path d="M12 304c9-80 37-127 83-139-8 47-24 78-83 139Z" fill="url(#leaf)"/>
+<path d="M17 304c56-68 93-81 121-63-28 36-70 53-121 63Z" fill="#50c396"/>
+<path d="M347 309c-18-84-55-136-104-143 12 64 51 111 104 143Z" fill="#248971"/>
+<path d="M339 310c-61-72-94-88-124-69 22 40 65 63 124 69Z" fill="#78d1ab"/>
+<g filter="url(#shadow)">
+<path d="M74 305c-2-92 12-154 53-190 21-18 44-27 68-27 38 0 65 22 87 52 25 37 29 104 25 165H74Z" fill="url(#fur)"/>
+<path d="M95 232C52 236 58 305 69 316h48l15-65-37-19Zm176 1c47 4 46 71 31 83h-43l-15-61 27-22Z" fill="#25283a"/>
+<path d="M110 143c-19-24-13-63 18-80 13-34 48-50 78-43 36 6 60 27 70 58 21 17 22 46 5 65-13-18-33-20-49-13-14-29-62-34-85-1-14-10-23-7-37 14Z" fill="#282b3c"/>
+<path d="M125 141c-13-17-29-2-25 18 1 17 12 28 27 29Zm139 0c12-18 30-2 27 18-2 17-14 29-28 29Z" fill="#504657"/>
+<path d="M132 119c8-36 27-52 66-55 42-2 68 23 72 62l-4 69c-7 45-30 70-68 76-39-4-66-34-68-79l2-73Z" fill="url(#face)"/>
+<path d="M142 132c14-17 35-18 50-7m11 0c14-13 37-8 49 8" stroke="#403649" stroke-width="10" stroke-linecap="round"/>
+<path d="M148 154c14-10 30-10 43 0m16 0c14-10 29-10 43 0" stroke="#2e2839" stroke-width="5" stroke-linecap="round"/>
+<circle cx="169" cy="155" r="4.5" fill="#1b1d28"/><circle cx="229" cy="155" r="4.5" fill="#1b1d28"/>
+<path d="M165 190c8-24 57-29 70 0 7 22-5 43-33 46-27-3-44-24-37-46Z" fill="#403547"/>
+<path d="M179 196c7-6 12-7 18-2m7 0c6-5 12-4 17 2" stroke="#241f2f" stroke-width="7" stroke-linecap="round"/>
+<path d="M178 223c17 10 37 10 49-1" stroke="#211e2e" stroke-width="5" stroke-linecap="round"/>
+<path d="M144 252c26 24 79 32 113 1" stroke="#7e6e7f" stroke-opacity=".5" stroke-width="8" stroke-linecap="round"/>
+</g>
+<path d="M10 316c34-22 62-22 98-9m242 9c-35-21-72-27-107-13" stroke="#4ba97e" stroke-width="8" stroke-linecap="round"/>
+<path d="M39 231c15-25 31-31 43-34m235 42c-15-26-31-33-45-35" stroke="#289978" stroke-width="6" stroke-linecap="round"/>
+<g fill="#ffafcc"><circle cx="43" cy="258" r="8"/><circle cx="55" cy="249" r="7"/><circle cx="61" cy="267" r="9"/><circle cx="317" cy="270" r="8"/><circle cx="306" cy="259" r="7"/><circle cx="327" cy="253" r="7"/></g>
+<g fill="#ffda78"><circle cx="53" cy="259" r="4"/><circle cx="317" cy="260" r="4"/></g>
+</svg>
