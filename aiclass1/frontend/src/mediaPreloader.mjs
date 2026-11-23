@@ -3,7 +3,7 @@
 // An in-flight next video is preserved if the user swipes into that work mid-download.
 export function createMediaPreloader({
  urlFor,
- maxId=13,
+ maxId=14,
  fetcher=(url,init)=>fetch(url,init),
  createObjectURL=blob=>URL.createObjectURL(blob),
  revokeObjectURL=url=>URL.revokeObjectURL(url),
