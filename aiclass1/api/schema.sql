@@ -40,11 +40,12 @@ CREATE TABLE IF NOT EXISTS video_source_cache (
 );
 CREATE TABLE IF NOT EXISTS event_config (
  id integer PRIMARY KEY DEFAULT 1 CHECK (id=1),
- max_hearts integer NOT NULL DEFAULT 5 CHECK(max_hearts BETWEEN 1 AND 13),
+ max_hearts integer NOT NULL DEFAULT 5 CHECK(max_hearts BETWEEN 1 AND 14),
  comments_enabled boolean NOT NULL DEFAULT true
 );
 INSERT INTO event_config(id,max_hearts,comments_enabled) VALUES(1,5,true) ON CONFLICT(id) DO NOTHING;
 -- Phone allowlist is imported privately during deployment; never commit personal data.
+-- Participant 13-14 are provisioned through a production-only parameterized allowlist migration.
 INSERT INTO videos(id,order_no,title,source_type,source_ref,share_url) VALUES
 (1,1,'Product 01','DRIVE','1Zh23cFQYlt-jCXiCSgKAAE1ijUWt-0Nn','https://drive.google.com/file/d/1Zh23cFQYlt-jCXiCSgKAAE1ijUWt-0Nn/view?usp=drivesdk'),
 (2,2,'Product 02','DRIVE','1ny61flJI7jiE1iOlNS1CXiNE8Lj-rmCy','https://drive.google.com/file/d/1ny61flJI7jiE1iOlNS1CXiNE8Lj-rmCy/view?usp=drivesdk'),
@@ -58,7 +59,8 @@ INSERT INTO videos(id,order_no,title,source_type,source_ref,share_url) VALUES
 (10,10,'Product 10','DRIVE','1InKf-jbKeibQaKQJZtzvlgctfO390l1l','https://drive.google.com/file/d/1InKf-jbKeibQaKQJZtzvlgctfO390l1l/view?usp=drivesdk'),
 (11,11,'Product 11','DRIVE','1WU8V24LzEIJaSoOQHrwjqae0jQrNroE7','https://drive.google.com/file/d/1WU8V24LzEIJaSoOQHrwjqae0jQrNroE7/view?usp=drive_link'),
 (12,12,'Product 12','DRIVE','1cJBaxqK_zwKBi05fVVST1N6efws8BoG1','https://drive.google.com/file/d/1cJBaxqK_zwKBi05fVVST1N6efws8BoG1/view?usp=drive_link'),
-(13,13,'Product 13','DRIVE','1inzeJqL6csen7yNo9FoTxbeWz78x5XW0','https://drive.google.com/file/d/1inzeJqL6csen7yNo9FoTxbeWz78x5XW0/view?usp=drive_link')
+(13,13,'Product 13','DRIVE','1inzeJqL6csen7yNo9FoTxbeWz78x5XW0','https://drive.google.com/file/d/1inzeJqL6csen7yNo9FoTxbeWz78x5XW0/view?usp=drive_link'),
+(14,14,'Product 14','DRIVE','19YAQdYdnw5THIgEbJCV3Lncd-IKbbTGf','https://drive.google.com/file/d/19YAQdYdnw5THIgEbJCV3Lncd-IKbbTGf/view?usp=drivesdk')
 ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,source_type=EXCLUDED.source_type,source_ref=EXCLUDED.source_ref,share_url=EXCLUDED.share_url;
 
 -- Stable media IDs are metadata only; playback requires refreshed expiring signed URLs.
