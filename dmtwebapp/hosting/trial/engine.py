@@ -5,7 +5,7 @@ trusted Docker image with an offline npm cache; no secrets or host network.
 """
 import argparse, contextlib, hashlib, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, tempfile, uuid, zipfile, fcntl
 from pathlib import Path
-from dependency_cache import cache_key, cache_hit, checked_dependencies, verified_lock
+from dependency_cache import cache_key, cache_hit, checked_dependencies, verified_lock, dependency_profile
 MAX_ZIP=50*1024**2; MAX_TOTAL=250*1024**2; MAX_FILES=5000
 SAFE=re.compile(r'^[a-z0-9][a-z0-9_-]{0,39}$'); ID=re.compile(r'^\d{4}$')
 ASSETS={'.html','.htm','.js','.mjs','.css','.json','.webmanifest','.png','.jpg','.jpeg','.webp','.gif','.svg','.ico','.avif','.woff','.woff2','.ttf','.otf','.mp3','.wav','.ogg','.mp4','.webm','.wasm','.txt','.pdf','.xml','.csv'}
@@ -84,7 +84,7 @@ def build(root, plan, image):
             except (OSError,subprocess.TimeoutExpired): pass
     # Only trusted, registry semver declarations are passed to the networked
     # dependency installer. Uploaded config/scripts/source are never mounted there.
-    deps=checked_dependencies(plan['dependencies'])
+    deps=dependency_profile(plan['dependencies'],plan.get('reviewed_findone',False))
     if (root/'node_modules').exists(): raise Error('PRIVATE_FILE')
     cache_dir=Path(os.environ.get('DMT_DEPENDENCY_CACHE',str(Path.home()/'.cache'/'dmtwebapp-deps'))).resolve()
     cache_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -109,7 +109,7 @@ def build(root, plan, image):
                 dep.rename(final);hit=final
         subprocess.run(['cp','-a','--reflink=auto',str(hit/'node_modules'),str(root/'node_modules')],check=True,timeout=120)
         shutil.copyfile(hit/'package-lock.json',root/'package-lock.trial.json')
-    run(root,'./node_modules/.bin/vite build --base=./','none',240)
+    run(root,'node --input-type=module -e \'import {build} from "vite"; await build({base:"./",build:{reportCompressedSize:false}})\'','none',360)
     return root/'dist'
 
 class Store:
@@ -138,7 +138,7 @@ class Store:
             with (self.base/'build.lock').open('a') as lock:
                 fcntl.flock(lock,fcntl.LOCK_EX)
                 with tempfile.TemporaryDirectory(dir=self.base) as tmp:
-                    root=inspect_and_extract(z,Path(tmp));plan=inspect(root);out=build(root,plan,image);verify(out)
+                    root=inspect_and_extract(z,Path(tmp));plan=inspect(root);plan['reviewed_findone']=hashlib.sha256(z.read_bytes()).hexdigest()=='1ae73ebf9bc418a236fad7f53ae9cfc856c8af7d7cbad605978618e0396a02be';out=build(root,plan,image);verify(out)
                     artifact.mkdir();shutil.copyfile(z,artifact/'original.zip');shutil.copytree(out,artifact/'web');verify(artifact/'web')
             with self.tx():
                 self.db.execute('UPDATE versions SET state=?,artifact=?,sha256=? WHERE app=? AND version=?',('ready',key,hashlib.sha256(z.read_bytes()).hexdigest(),a['id'],v)); self.db.execute('INSERT INTO events(app,action,version) VALUES(?,?,?)',(a['id'],'ready',v))
