@@ -117,6 +117,10 @@ class Store:
         self.base=Path(base).resolve();self.base.mkdir(parents=True,exist_ok=True);(self.base/'artifacts').mkdir(exist_ok=True)
         self.db=sqlite3.connect(self.base/'trial.sqlite',timeout=15,isolation_level=None);self.db.row_factory=sqlite3.Row;self.db.execute('PRAGMA foreign_keys=ON')
         self.db.executescript('''CREATE TABLE IF NOT EXISTS apps(id INTEGER PRIMARY KEY, student TEXT NOT NULL, folder TEXT NOT NULL, name TEXT NOT NULL, active INTEGER, previous INTEGER, next_version INTEGER NOT NULL DEFAULT 1, UNIQUE(student,folder)); CREATE TABLE IF NOT EXISTS versions(app INTEGER REFERENCES apps(id), version INTEGER, zip_name TEXT NOT NULL, sha256 TEXT, title TEXT, notes TEXT, state TEXT NOT NULL CHECK(state IN ('building','ready','failed','deleted')), artifact TEXT, error TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(app,version)); CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, app INTEGER, action TEXT, version INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP);''')
+        with self.tx():
+            if 'build_key' not in {r[1] for r in self.db.execute('PRAGMA table_info(versions)')}:
+                self.db.execute('ALTER TABLE versions ADD COLUMN build_key TEXT')
+            self.db.execute('CREATE INDEX IF NOT EXISTS version_build_lookup ON versions(app,build_key,state)')
     def close(self): self.db.close()
     def __enter__(self): return self
     def __exit__(self,*args): self.close()
@@ -131,17 +135,32 @@ class Store:
         return row
     def upload(self,student,folder,name,z,title='',notes='',image=None):
         if not ID.fullmatch(student) or not SAFE.fullmatch(folder) or folder in {'api','versions','login','logout','admin','assets'}: raise Error('INVALID_FOLDER')
-        z=Path(z); key=uuid.uuid4().hex; artifact=self.base/'artifacts'/key
+        z=Path(z)
+        if z.stat().st_size>MAX_ZIP: raise Error('ZIP_TOO_LARGE')
+        source_sha=hashlib.sha256(z.read_bytes()).hexdigest()
+        key=uuid.uuid4().hex; artifact=self.base/'artifacts'/key
+        # An identical ZIP can reuse a previously verified artifact for the same app.
+        # Build image and pipeline identity are part of the key. No cross-student reuse.
+        build_key=hashlib.sha256(json.dumps({'source':source_sha,'image':image,'pipeline':2},sort_keys=True).encode()).hexdigest()
         with self.tx():
-            self.db.execute('INSERT OR IGNORE INTO apps(student,folder,name) VALUES(?,?,?)',(student,folder,name));a=self.app(student,folder);v=a['next_version'];self.db.execute('UPDATE apps SET next_version=next_version+1 WHERE id=?',(a['id'],));self.db.execute('INSERT INTO versions(app,version,zip_name,title,notes,state) VALUES(?,?,?,?,?,?)',(a['id'],v,z.name,title,notes,'building'))
+            self.db.execute('INSERT OR IGNORE INTO apps(student,folder,name) VALUES(?,?,?)',(student,folder,name));a=self.app(student,folder);v=a['next_version'];self.db.execute('UPDATE apps SET next_version=next_version+1 WHERE id=?',(a['id'],));self.db.execute('INSERT INTO versions(app,version,zip_name,title,notes,state,sha256,build_key) VALUES(?,?,?,?,?,?,?,?)',(a['id'],v,z.name,title,notes,'building',source_sha,build_key))
         try:
             with (self.base/'build.lock').open('a') as lock:
                 fcntl.flock(lock,fcntl.LOCK_EX)
-                with tempfile.TemporaryDirectory(dir=self.base) as tmp:
-                    root=inspect_and_extract(z,Path(tmp));plan=inspect(root);plan['reviewed_findone']=hashlib.sha256(z.read_bytes()).hexdigest()=='1ae73ebf9bc418a236fad7f53ae9cfc856c8af7d7cbad605978618e0396a02be';out=build(root,plan,image);verify(out)
-                    artifact.mkdir();shutil.copyfile(z,artifact/'original.zip');shutil.copytree(out,artifact/'web');verify(artifact/'web')
-            with self.tx():
-                self.db.execute('UPDATE versions SET state=?,artifact=?,sha256=? WHERE app=? AND version=?',('ready',key,hashlib.sha256(z.read_bytes()).hexdigest(),a['id'],v)); self.db.execute('INSERT INTO events(app,action,version) VALUES(?,?,?)',(a['id'],'ready',v))
+                existing=self.db.execute("SELECT artifact FROM versions WHERE app=? AND build_key=? AND state='ready' ORDER BY version DESC LIMIT 1",(a['id'],build_key)).fetchone()
+                reused=False
+                if existing:
+                    try:
+                        verify(self.base/'artifacts'/existing['artifact']/'web')
+                        key=existing['artifact'];reused=True
+                    except (OSError,Error,TypeError):
+                        pass
+                if not reused:
+                    with tempfile.TemporaryDirectory(dir=self.base) as tmp:
+                        root=inspect_and_extract(z,Path(tmp));plan=inspect(root);plan['reviewed_findone']=source_sha=='1ae73ebf9bc418a236fad7f53ae9cfc856c8af7d7cbad605978618e0396a02be';out=build(root,plan,image);verify(out)
+                        artifact.mkdir();shutil.copyfile(z,artifact/'original.zip');shutil.copytree(out,artifact/'web');verify(artifact/'web')
+                with self.tx():
+                    self.db.execute('UPDATE versions SET state=?,artifact=? WHERE app=? AND version=?',('ready',key,a['id'],v)); self.db.execute('INSERT INTO events(app,action,version) VALUES(?,?,?)',(a['id'],'cache_reused' if reused else 'ready',v))
         except Exception as e:
             if artifact.exists(): shutil.rmtree(artifact)
             with self.tx(): self.db.execute('UPDATE versions SET state=?,error=? WHERE app=? AND version=?',('failed',str(e) if isinstance(e,Error) else 'BUILD_OR_ZIP_FAILED',a['id'],v))
