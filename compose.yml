@@ -3,6 +3,7 @@ services:
     image: nginx:alpine
     volumes:
       - ./index.html:/usr/share/nginx/html/index.html:ro
+      - /var/lib/web-manager/site-media/jsaiclass/dmtwebapp-trial:/usr/share/nginx/html/dmtwebapp/trial:ro
       - ./aiclass1/frontend/dist:/usr/share/nginx/html/aiclass1:ro
       - ./aiclass1/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     container_name: jsaiclass
