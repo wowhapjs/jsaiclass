@@ -1,0 +1,11 @@
+"""Local peer-authenticated PostgreSQL function client. No DB passwords."""
+import base64, json, os, subprocess
+ALLOWED={'login','dashboard','enqueue','student_action','resolve_app','tls_allowed','claim_job','find_artifact','finish_job','browser_data'}
+def call(fn, payload=None):
+    if fn not in ALLOWED: raise ValueError("INVALID_DB_FUNCTION")
+    raw=base64.b64encode(json.dumps(payload or {},ensure_ascii=False,separators=(',',':')).encode()).decode()
+    query="SET statement_timeout='8s'; SELECT dmtwebapp."+fn+"(convert_from(decode('"+raw+"','base64'),'UTF8')::jsonb);"
+    env={'PATH':'/usr/bin:/bin','PGHOST':'/var/run/postgresql','PGDATABASE':os.environ.get('DMT_DB','dmtwebapp'),'PGCONNECT_TIMEOUT':'3','LANG':'C.UTF-8'}
+    proc=subprocess.run(['/usr/bin/psql','-X','-qAt','-v','ON_ERROR_STOP=1'],input=query.encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,timeout=12)
+    if proc.returncode: raise RuntimeError('DATABASE_ERROR')
+    return json.loads(proc.stdout) if proc.stdout.strip() else {}
