@@ -5,7 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'hosting'/'trial'))
 from engine import inspect_and_extract,inspect,verify,Error
 from dependency_cache import checked_dependencies,cache_key,cache_hit,verified_lock,FINDONE_FULL,FINDONE_KEYS
 from db_config import normalize,ConfigError
-from pg import call
+from pg import call,DatabaseUnavailable
 
 BASE=Path(os.environ.get('DMT_DATA','/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod'))
 IMAGE=os.environ.get('DMT_IMAGE','node@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb')
@@ -72,9 +72,13 @@ def shared_build(root,plan,config):
         subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20,check=False)
     return root/'dist'
 
+def phase(jid,stage):
+    try: call('update_phase',{'id':jid,'phase':stage})
+    except DatabaseUnavailable: print('phase status temporarily unavailable',flush=True)
+
 def process(job):
     jid=job['id'];src=BASE/'incoming'/(str(uuid.UUID(job['storage_key']))+'.zip')
-    artifact=None
+    artifact=None;commit_attempted=False
     try:
         if shutil.disk_usage(BASE).free<3*1024**3: raise Error('DISK_RESERVE_LIMIT')
         if src.stat().st_size!=job['zip_bytes']: raise Error('ZIP_SIZE_MISMATCH')
@@ -83,13 +87,16 @@ def process(job):
         key=hashlib.sha256(json.dumps({'sha':sha,'config':config,'image':IMAGE,'pipeline':PIPELINE},sort_keys=True).encode()).hexdigest()
         old=call('find_artifact',{'app':job['app_id'],'key':key})
         if old:
+            phase(jid,'reuse')
             p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
             return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
         with tempfile.TemporaryDirectory(prefix='build-',dir=BASE/'work') as tmp:
             root=inspect_and_extract(src,Path(tmp))
             if sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and p.suffix in {'.js','.ts','.jsx','.tsx','.mjs','.py'})>12*1024**2:raise Error('SOURCE_REVIEW_LIMIT')
             plan=inspect(root)
+            phase(jid,'build')
             out=shared_build(root,plan,config)
+            phase(jid,'verify')
             if out.is_symlink() or not out.resolve().is_relative_to(root.resolve()):raise Error('UNSAFE_OUTPUT')
             info=verify(out)
             mode=config.get('mode','none')
@@ -100,12 +107,16 @@ def process(job):
             verify(artifact/'web')
             for p in artifact.rglob('*'):p.chmod(0o750 if p.is_dir() else 0o640)
             artifact.chmod(0o750)
+            commit_attempted=True
             result=call('finish_job',{'id':jid,'status':'ready','artifact':aid,'bytes':info['bytes'],'sha':sha,'key':key,'database':database,'config':config})
             if result.get('error'):
                 shutil.rmtree(artifact);artifact=None
             return result
     except Exception as exc:
-        if artifact and artifact.exists():shutil.rmtree(artifact)
+        if artifact and artifact.exists() and not commit_attempted:shutil.rmtree(artifact)
+        if isinstance(exc,DatabaseUnavailable) and commit_attempted:
+            # Keep the artifact: the DB may already have committed the ready status.
+            raise
         code=str(exc) if isinstance(exc,(Error,ConfigError)) else 'BUILD_OR_ZIP_FAILED'
         return call('finish_job',{'id':jid,'status':'failed','error':code[:100]})
 def main():
@@ -118,7 +129,7 @@ def main():
                 if job.get('id'):
                     start=time.monotonic();result=process(job)
                     print('job',job['id'],round(time.monotonic()-start,2),result.get('error','processed'),flush=True)
-                else: time.sleep(1)
+                else: time.sleep(3)
             except Exception:
                 print('worker retry',flush=True);time.sleep(3)
 if __name__=='__main__':main()
