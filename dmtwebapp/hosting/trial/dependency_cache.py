@@ -45,12 +45,20 @@ def verified_lock(path,expected):
     packages=lock.get("packages")
     if not isinstance(packages,dict) or packages.get("",{}).get("dependencies")!=expected:
         raise ValueError("LOCK_MANIFEST_MISMATCH")
+    def registry_entry(entry):
+        return (not entry.get("link") and entry.get("resolved","").startswith("https://registry.npmjs.org/")
+                and re.fullmatch(r"sha(?:256|384|512)-[A-Za-z0-9+/=]+",entry.get("integrity","")))
     for name,entry in packages.items():
-        if name=="":
+        if name=="" or registry_entry(entry):
             continue
-        if (entry.get("link") or not entry.get("resolved","").startswith("https://registry.npmjs.org/")
-            or not re.fullmatch(r"sha(?:256|384|512)-[A-Za-z0-9+/=]+",entry.get("integrity",""))):
-            raise ValueError("LOCK_REGISTRY_OR_INTEGRITY_INVALID")
+        parent=name.rsplit("/node_modules/",1)[0]
+        # Bundled dependencies are part of the parent registry tarball. Accept
+        # only entries without their own URI, covered by a verified parent.
+        if (entry.get("inBundle") is True and not entry.get("link")
+            and not entry.get("resolved") and not entry.get("integrity")
+            and parent!=name and registry_entry(packages.get(parent,{}))):
+            continue
+        raise ValueError("LOCK_REGISTRY_OR_INTEGRITY_INVALID")
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 def dependency_profile(deps,reviewed_findone=False):
