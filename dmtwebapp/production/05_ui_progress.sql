@@ -91,7 +91,7 @@ CREATE OR REPLACE FUNCTION resolve_app(p jsonb) RETURNS jsonb
  'host','dmt-'||replace(a.id::text,'-','')||'.jsaiclass.duckdns.org','version',u.version_number,'config',u.public_config)
  FROM apps a JOIN students s ON s.id=a.student_id AND s.active JOIN uploads u ON u.app_id=a.id AND u.status='ready'
  WHERE a.deleted_at IS NULL AND (CASE WHEN p ? 'host' THEN 'dmt-'||replace(a.id::text,'-','')||'.jsaiclass.duckdns.org'=p->>'host'
- ELSE s.folder_id=p->>'student' AND a.lower(folder_name)=lower(p->>'folder') END)
+ ELSE s.folder_id=p->>'student' AND lower(a.folder_name)=lower(p->>'folder') END)
  AND (CASE WHEN p ? 'version' THEN u.version_number=(p->>'version')::integer ELSE u.id=a.active_upload_id END)
 $$;
 CREATE OR REPLACE FUNCTION claim_job(p jsonb) RETURNS jsonb
