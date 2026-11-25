@@ -1,0 +1,29 @@
+[Unit]
+Description=DMT WebApp serialized build worker
+After=docker.service postgresql.service
+Requires=docker.service
+[Service]
+Type=simple
+User=dmtworker
+Group=dmtapp
+SupplementaryGroups=docker
+UMask=0027
+Environment=DMT_DATA=/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod
+Environment=DMT_DEPENDENCY_CACHE=/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod/common
+Environment=DMT_DB=dmtwebapp
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /srv/sites/jsaiclass/dmtwebapp/production/worker.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod/artifacts /var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod/work
+MemoryMax=160M
+TasksMax=32
+[Install]
+WantedBy=multi-user.target
