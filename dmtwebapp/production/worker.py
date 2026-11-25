@@ -83,13 +83,16 @@ def process(job):
         key=hashlib.sha256(json.dumps({'sha':sha,'config':config,'image':IMAGE,'pipeline':PIPELINE},sort_keys=True).encode()).hexdigest()
         old=call('find_artifact',{'app':job['app_id'],'key':key})
         if old:
+            call('update_phase',{'id':jid,'phase':'reuse'})
             p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
             return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
         with tempfile.TemporaryDirectory(prefix='build-',dir=BASE/'work') as tmp:
             root=inspect_and_extract(src,Path(tmp))
             if sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and p.suffix in {'.js','.ts','.jsx','.tsx','.mjs','.py'})>12*1024**2:raise Error('SOURCE_REVIEW_LIMIT')
             plan=inspect(root)
+            call('update_phase',{'id':jid,'phase':'build'})
             out=shared_build(root,plan,config)
+            call('update_phase',{'id':jid,'phase':'verify'})
             if out.is_symlink() or not out.resolve().is_relative_to(root.resolve()):raise Error('UNSAFE_OUTPUT')
             info=verify(out)
             mode=config.get('mode','none')

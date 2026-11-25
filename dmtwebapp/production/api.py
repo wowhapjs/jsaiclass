@@ -12,7 +12,7 @@ PORT=int(os.environ.get('DMT_PORT','31107'))
 ORIGIN=os.environ.get('DMT_MANAGER_ORIGIN','https://jsaiclass.duckdns.org')
 MANAGER=urllib.parse.urlsplit(ORIGIN).netloc
 HOST=re.compile(r'dmt-[a-f0-9]{32}\.jsaiclass\.duckdns\.org')
-FOLDER=re.compile(r'[a-z0-9][a-z0-9_-]{0,39}')
+FOLDER=re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,39}')
 STUDENT=re.compile(r'\d{4}')
 RESERVED={'api','versions','login','logout','admin','assets','trial'}
 COOKIE='__Host-dmt-session'; BROWSER='__Host-dmt-browser'
@@ -26,7 +26,7 @@ def digest(t):return hashlib.sha256(t.encode()).hexdigest()
 class Bad(Exception):
     def __init__(self,code,status=400):self.code=code;self.status=status
 def clean_folder(s):
-    if not isinstance(s,str) or not FOLDER.fullmatch(s) or s in RESERVED:raise Bad('INVALID_FOLDER')
+    if not isinstance(s,str) or not FOLDER.fullmatch(s) or s.lower() in RESERVED:raise Bad('INVALID_FOLDER')
     return s
 def clean_text(s,limit,required=False):
     if not isinstance(s,str) or len(s)>limit or any(ord(c)<32 and c not in '\n\t' for c in s) or (required and not s.strip()):
