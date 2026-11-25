@@ -31,7 +31,43 @@ https:// {
  tls {
   on_demand
  }
- @dmt host_regexp dmt "^dmt-[0-9a-f]{32}\.jsaiclass\.duckdns\.org$"
+ @dmt expression `{host}.matches('^dmt-[0-9a-f]{32}[.]jsaiclass[.]duckdns[.]org
+ handle @dmt {
+  reverse_proxy 127.0.0.1:31107
+ }
+ handle {
+  respond 404
+ }
+}
+'''
+# Handle only this project on HTTP; other existing :80 routes remain untouched.
+needle=':80 {\n'
+if text.count(needle)!=1:raise SystemExit('existing HTTP fallback differs')
+text=text.replace(needle,needle+r''' @dmt_http expression `{host}.matches('^dmt-[0-9a-f]{32}[.]jsaiclass[.]duckdns[.]org
+ redir @dmt_http https://{host}{uri} 308
+''')
+out.write_text(global_options+'\n'+text+catchall)
+)`
+ handle @dmt {
+  reverse_proxy 127.0.0.1:31107
+ }
+ handle {
+  respond 404
+ }
+}
+'''
+# Handle only this project on HTTP; other existing :80 routes remain untouched.
+needle=':80 {\n'
+if text.count(needle)!=1:raise SystemExit('existing HTTP fallback differs')
+text=text.replace(needle,needle+r''' @dmt_http host_regexp dmt_http "^dmt-[0-9a-f]{32}\.jsaiclass\.duckdns\.org$"
+ redir @dmt_http https://{host}{uri} 308
+''')
+out.write_text(global_options+'\n'+text+catchall)
+)`
+ redir @dmt_http https://{host}{uri} 308
+''')
+out.write_text(global_options+'\n'+text+catchall)
+)`
  handle @dmt {
   reverse_proxy 127.0.0.1:31107
  }
