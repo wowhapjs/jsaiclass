@@ -122,7 +122,9 @@ class Handler(BaseHTTPRequestHandler):
             p=json.loads(base64.b64decode(raw,validate=True))
             if not isinstance(p,dict):raise ValueError()
         except (ValueError,TypeError,UnicodeError):raise Bad('INVALID_METADATA')
-        p={'folder':clean_folder(p.get('folder')),'name':clean_text(p.get('name'),100,True),
+        try:request_key=str(uuid.UUID(p['request_key'])) if p.get('request_key') else None
+        except (TypeError,ValueError,AttributeError):raise Bad('INVALID_METADATA')
+        p={'request_key':request_key,'folder':clean_folder(p.get('folder')),'name':clean_text(p.get('name'),100,True),
            'filename':clean_text(p.get('filename'),255,True),'title':clean_text(p.get('title',''),100),
            'notes':clean_text(p.get('notes',''),1000),'config':normalize(p.get('config'))}
         if '/' in p['filename'] or '\\' in p['filename'] or not p['filename'].lower().endswith('.zip'):raise Bad('ZIP_REQUIRED')
@@ -141,7 +143,7 @@ class Handler(BaseHTTPRequestHandler):
             p.update(token=self.token(),storage=storage,bytes=n)
             unknown=True
             response=call('enqueue',p);unknown=False
-            result=self.result(response);keep=True
+            result=self.result(response);keep=not result.get('reused_request',False)
             self.reply(202,result)
         finally:
             # If the database transport failed, retain the spool for reconciliation

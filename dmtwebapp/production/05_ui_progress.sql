@@ -3,6 +3,8 @@ SET LOCAL search_path=dmtwebapp,pg_catalog;
 ALTER TABLE apps DROP CONSTRAINT IF EXISTS apps_folder_name_check;
 ALTER TABLE apps ADD CONSTRAINT apps_folder_name_check CHECK(folder_name ~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$' AND lower(folder_name) NOT IN ('api','versions','login','logout','admin','assets','trial'));
 CREATE UNIQUE INDEX IF NOT EXISTS apps_student_folder_ci ON apps(student_id,lower(folder_name));
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS request_key uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS uploads_student_request ON uploads(student_id,request_key) WHERE request_key IS NOT NULL;
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS build_phase text NOT NULL DEFAULT 'queued';
 UPDATE uploads SET build_phase=CASE status WHEN 'ready' THEN 'ready' WHEN 'failed' THEN 'failed' WHEN 'validating' THEN 'inspect' WHEN 'deleted' THEN 'deleted' ELSE 'queued' END;
 CREATE OR REPLACE FUNCTION dashboard(p jsonb) RETURNS jsonb
@@ -17,18 +19,22 @@ CREATE OR REPLACE FUNCTION dashboard(p jsonb) RETURNS jsonb
  'host','dmt-'||replace(a.id::text,'-','')||'.jsaiclass.duckdns.org',
  'versions',COALESCE((SELECT jsonb_agg(jsonb_build_object('version',u.version_number,'filename',u.original_filename,'title',u.version_title,
  'notes',u.release_notes,'state',u.status,'bytes',u.zip_bytes,'error',u.error_message,'created',u.uploaded_at,
- 'database',u.db_mode,'phase',u.build_phase,'extracted_bytes',u.extracted_bytes,'updated',u.updated_at,'config',u.public_config,'entry',u.entry_path) ORDER BY u.version_number DESC) FROM uploads u WHERE u.app_id=a.id AND u.status<>'deleted'),'[]'::jsonb))
+ 'database',u.db_mode,'phase',u.build_phase,'extracted_bytes',u.extracted_bytes,'updated',u.updated_at,'config',u.public_config,'entry',u.entry_path,'request_key',u.request_key) ORDER BY u.version_number DESC) FROM uploads u WHERE u.app_id=a.id AND u.status<>'deleted'),'[]'::jsonb))
  ORDER BY a.created_at DESC) FROM apps a WHERE a.student_id=st.id AND a.deleted_at IS NULL),'[]'::jsonb))
  INTO result FROM students st WHERE id=sid;
  RETURN result;
  END $$;
 CREATE OR REPLACE FUNCTION enqueue(p jsonb) RETURNS jsonb
  LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,dmtwebapp AS $$
- DECLARE sid bigint:=session_student(p->>'token'); a apps%ROWTYPE; v integer; u uuid; b bigint:=(p->>'bytes')::bigint;
+ DECLARE sid bigint:=session_student(p->>'token'); a apps%ROWTYPE; v integer; u uuid; prior uploads%ROWTYPE; b bigint:=(p->>'bytes')::bigint;
  BEGIN
  IF sid IS NULL THEN RETURN '{"error":"AUTH_REQUIRED"}'::jsonb; END IF;
  IF b<1 OR b>52428800 THEN RETURN '{"error":"ZIP_SIZE_LIMIT"}'::jsonb; END IF;
  PERFORM pg_advisory_xact_lock(735100);
+ SELECT * INTO prior FROM uploads WHERE student_id=sid AND request_key=(p->>'request_key')::uuid;
+ IF FOUND THEN
+  RETURN jsonb_build_object('version',prior.version_number,'status',prior.status,'folder',(SELECT folder_name FROM apps WHERE id=prior.app_id),'reused_request',true);
+ END IF;
  IF (SELECT count(*) FROM uploads WHERE status IN ('uploaded','validating'))>=24 THEN RETURN '{"error":"QUEUE_FULL"}'::jsonb; END IF;
  IF (SELECT count(*) FROM uploads WHERE student_id=sid AND status IN ('uploaded','validating'))>=2 THEN RETURN '{"error":"STUDENT_QUEUE_FULL"}'::jsonb; END IF;
  IF (SELECT COALESCE(sum(zip_bytes+COALESCE(extracted_bytes,0)),0) FROM uploads WHERE student_id=sid)+b>536870912 THEN RETURN '{"error":"STORAGE_LIMIT"}'::jsonb; END IF;
@@ -43,8 +49,8 @@ CREATE OR REPLACE FUNCTION enqueue(p jsonb) RETURNS jsonb
  IF EXISTS(SELECT 1 FROM uploads WHERE app_id=a.id AND status IN ('uploaded','validating')) THEN RETURN '{"error":"APP_BUSY"}'::jsonb; END IF;
  v:=a.next_version;
  UPDATE apps SET next_version=v+1 WHERE id=a.id;
- INSERT INTO uploads(student_id,app_id,version_number,original_filename,storage_key,zip_bytes,version_title,release_notes,public_config)
- VALUES(sid,a.id,v,p->>'filename',(p->>'storage')::uuid,b,left(p->>'title',100),left(p->>'notes',1000),COALESCE(p->'config','{}')) RETURNING id INTO u;
+ INSERT INTO uploads(student_id,app_id,version_number,original_filename,storage_key,zip_bytes,version_title,release_notes,public_config,request_key)
+ VALUES(sid,a.id,v,p->>'filename',(p->>'storage')::uuid,b,left(p->>'title',100),left(p->>'notes',1000),COALESCE(p->'config','{}'),(p->>'request_key')::uuid) RETURNING id INTO u;
  INSERT INTO events(student_id,upload_id,action,detail) VALUES(sid,u,'queued',jsonb_build_object('version',v));
  RETURN jsonb_build_object('version',v,'status','uploaded','folder',a.folder_name);
  END $$;
