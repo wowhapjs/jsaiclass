@@ -86,8 +86,12 @@ def process(job):
             p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
             return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
         with tempfile.TemporaryDirectory(prefix='build-',dir=BASE/'work') as tmp:
-            root=inspect_and_extract(src,Path(tmp));plan=inspect(root)
-            out=shared_build(root,plan,config);info=verify(out)
+            root=inspect_and_extract(src,Path(tmp))
+            if sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and p.suffix in {'.js','.ts','.jsx','.tsx','.mjs','.py'})>12*1024**2:raise Error('SOURCE_REVIEW_LIMIT')
+            plan=inspect(root)
+            out=shared_build(root,plan,config)
+            if out.is_symlink() or not out.resolve().is_relative_to(root.resolve()):raise Error('UNSAFE_OUTPUT')
+            info=verify(out)
             mode=config.get('mode','none')
             database=mode if mode!='none' else plan['database']
             aid=str(uuid.uuid4());artifact=BASE/'artifacts'/aid

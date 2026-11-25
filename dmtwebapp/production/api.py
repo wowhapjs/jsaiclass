@@ -16,6 +16,8 @@ FOLDER=re.compile(r'[a-z0-9][a-z0-9_-]{0,39}')
 STUDENT=re.compile(r'\d{4}')
 RESERVED={'api','versions','login','logout','admin','assets','trial'}
 COOKIE='__Host-dmt-session'; BROWSER='__Host-dmt-browser'
+DEMO_HOST='dmt-00000000000000000000000000000000.jsaiclass.duckdns.org'
+DEMO_ROOT=Path('/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-trial/findone')
 MAX_ZIP=50*1024**2
 uploads=threading.BoundedSemaphore(4)
 requests=threading.BoundedSemaphore(32)
@@ -87,7 +89,8 @@ class Handler(BaseHTTPRequestHandler):
             self.page();return
         parts=path[len(prefix):].strip('/').split('/') if path.startswith(prefix+'/') else []
         if len(parts)==1 and STUDENT.fullmatch(parts[0]):
-            s=self.session()
+            try:s=self.session()
+            except Bad:self.redirect(prefix+'/');return
             if s['folder']!=parts[0]:raise Bad('AUTH_REQUIRED',403)
             self.page();return
         if len(parts) in (2,4) and STUDENT.fullmatch(parts[0]) and FOLDER.fullmatch(parts[1]):
@@ -124,7 +127,7 @@ class Handler(BaseHTTPRequestHandler):
            'notes':clean_text(p.get('notes',''),1000),'config':normalize(p.get('config'))}
         if '/' in p['filename'] or '\\' in p['filename'] or not p['filename'].lower().endswith('.zip'):raise Bad('ZIP_REQUIRED')
         if not uploads.acquire(blocking=False):raise Bad('UPLOAD_BUSY',429)
-        storage=str(uuid.uuid4());target=BASE/'incoming'/(storage+'.zip');keep=False
+        storage=str(uuid.uuid4());target=BASE/'incoming'/(storage+'.zip');keep=False;unknown=False
         try:
             if shutil.disk_usage(BASE).free<3*1024**3:raise Bad('DISK_RESERVE_LIMIT',503)
             with target.open('xb') as out:
@@ -136,14 +139,14 @@ class Handler(BaseHTTPRequestHandler):
             # The file is complete before its queue row is visible.
             target.chmod(0o640)
             p.update(token=self.token(),storage=storage,bytes=n)
-            result=self.result(call('enqueue',p));keep=True
+            unknown=True
+            response=call('enqueue',p);unknown=False
+            result=self.result(response);keep=True
             self.reply(202,result)
         finally:
             # If the database transport failed, retain the spool for reconciliation
             # rather than deleting a file that might already be committed.
-            if not keep and not target.exists():pass
-            elif not keep and 'result' not in locals():
-                pass
+            if not keep and not unknown:target.unlink(missing_ok=True)
             uploads.release()
     def manager_post(self,path):
         self.origin(ORIGIN)
@@ -178,11 +181,12 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts)<2 or not re.fullmatch(r'[1-9]\d{0,8}',parts[1]):raise Bad('NOT_FOUND',404)
             query['version']=int(parts[1]);parts=parts[2:]
             if not parts and not path.endswith('/'):self.redirect(path+'/');return
-        app=call('resolve_app',query)
+        demo=self.host()==DEMO_HOST and DEMO_ROOT.is_dir()
+        app={'version':1} if demo and query.get('version',1)==1 else call('resolve_app',query)
         if not app:raise Bad('NOT_FOUND',404)
         if path=='/':
             self.redirect('/__dmt_versions/'+str(app['version'])+'/');return
-        root=BASE/'artifacts'/str(uuid.UUID(app['artifact']))/'web'
+        root=DEMO_ROOT if demo else BASE/'artifacts'/str(uuid.UUID(app['artifact']))/'web'
         p=root.joinpath(*parts) if parts else root/'index.html'
         if p.is_dir():p=p/'index.html'
         if not p.is_file() or not p.resolve().is_relative_to(root.resolve()) or p.is_symlink():raise Bad('NOT_FOUND',404)
@@ -217,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
             host=self.host()
             if host==f'127.0.0.1:{PORT}' and path=='/internal/tls' and self.command=='GET':
                 d=urllib.parse.parse_qs(url.query).get('domain',[''])[0]
-                allowed=bool(HOST.fullmatch(d) and call('tls_allowed',{'domain':d}).get('allowed'))
+                allowed=bool(HOST.fullmatch(d) and ((d==DEMO_HOST and DEMO_ROOT.is_dir()) or call('tls_allowed',{'domain':d}).get('allowed')))
                 self.reply(200 if allowed else 403,{'allowed':allowed});return
             if host==f'127.0.0.1:{PORT}' and path=='/internal/health' and self.command=='GET':self.reply(200,{'ok':True});return
             if host==MANAGER:
