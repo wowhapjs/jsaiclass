@@ -4,7 +4,7 @@ import base64,hashlib,html,json,mimetypes,os,re,secrets,shutil,socket,threading,
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
-from pg import call
+from pg import call,DatabaseUnavailable
 from db_config import normalize,ConfigError
 HERE=Path(__file__).resolve().parent
 BASE=Path(os.environ.get('DMT_DATA','/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod'))
@@ -237,6 +237,7 @@ class Handler(BaseHTTPRequestHandler):
             else:raise Bad('HOST_REJECTED',404)
         except Bad as e:self.reply(e.status,{'error':e.code})
         except ConfigError as e:self.reply(400,{'error':str(e)})
+        except DatabaseUnavailable:self.reply(503,{'error':'DATABASE_UNAVAILABLE'},headers={'Retry-After':'5'})
         except (BrokenPipeError,ConnectionResetError,socket.timeout):pass
         except Exception:self.reply(500,{'error':'INTERNAL_ERROR'})
         finally:requests.release()

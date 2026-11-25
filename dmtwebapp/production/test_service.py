@@ -25,12 +25,15 @@ def upload(c,blob,name,folder='findone',config=None):
     meta={'filename':name,'folder':folder,'name':'FinDone test','title':'Trial','notes':'Synthetic data','config':config or {}}
     return obj(req(PREFIX+'upload',blob,c,headers={'Content-Type':'application/zip','X-DMT-Meta':base64.b64encode(json.dumps(meta).encode()).decode()}),202)['version']
 def ready(c,v,folder='findone'):
-    end=time.monotonic()+180
+    end=time.monotonic()+420
     while time.monotonic()<end:
-        s=obj(req(PREFIX+'me',cookie=c),200);a=next(a for a in s['apps'] if a['folder']==folder);u=next(u for u in a['versions'] if u['version']==v)
+        try:r=req(PREFIX+'me',cookie=c)
+        except (TimeoutError,urllib.error.URLError):time.sleep(5);continue
+        if r[0]>=500:time.sleep(5);continue
+        s=obj(r,200);a=next(a for a in s['apps'] if a['folder']==folder);u=next(u for u in a['versions'] if u['version']==v)
         if u['state']=='ready':return a,u
         assert u['state']!='failed',u.get('error')
-        time.sleep(1)
+        time.sleep(5)
     raise AssertionError('BUILD_TIMEOUT')
 def static(txt):
     b=io.BytesIO()
