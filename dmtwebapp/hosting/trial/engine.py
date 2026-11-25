@@ -5,6 +5,7 @@ trusted Docker image with an offline npm cache; no secrets or host network.
 """
 import argparse, contextlib, hashlib, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, tempfile, uuid, zipfile, fcntl
 from pathlib import Path
+from dependency_cache import cache_key, cache_hit, checked_dependencies, verified_lock
 MAX_ZIP=50*1024**2; MAX_TOTAL=250*1024**2; MAX_FILES=5000
 SAFE=re.compile(r'^[a-z0-9][a-z0-9_-]{0,39}$'); ID=re.compile(r'^\d{4}$')
 ASSETS={'.html','.htm','.js','.mjs','.css','.json','.webmanifest','.png','.jpg','.jpeg','.webp','.gif','.svg','.ico','.avif','.woff','.woff2','.ttf','.otf','.mp3','.wav','.ogg','.mp4','.webm','.wasm','.txt','.pdf','.xml','.csv'}
@@ -67,9 +68,11 @@ def build(root, plan, image):
     if os.getuid()==0: raise Error('NON_ROOT_WORKER_REQUIRED')
     docker=['sudo','-n','docker'] if os.environ.get('DMT_TRIAL_DOCKER_SUDO')=='1' else ['docker']
     online=os.environ.get('DMT_TRIAL_ONLINE_DEPS')=='1'
-    def run(work,command,network,seconds):
+    def run(work,command,network,seconds,cache=None):
         name='dmt-'+uuid.uuid4().hex
         cmd=docker+['run','--name',name,'--pull=never','--network='+network,'--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.6','--user',f'{os.getuid()}:{os.getgid()}','--tmpfs','/tmp:rw,nosuid,nodev,size=256m','--mount',f'type=bind,src={work},dst=/work','-w','/work','-e','HOME=/tmp','-e','npm_config_cache=/tmp/npm-cache','--entrypoint','/bin/sh',image,'-ec',command]
+        if cache is not None:
+            at=cmd.index('--entrypoint'); cmd[at:at]=['--mount',f'type=bind,src={cache},dst=/npm-cache','-e','npm_config_cache=/npm-cache']
         try:
             with tempfile.TemporaryFile() as log:
                 r=subprocess.run(cmd,stdout=log,stderr=log,timeout=seconds)
@@ -81,27 +84,31 @@ def build(root, plan, image):
             except (OSError,subprocess.TimeoutExpired): pass
     # Only trusted, registry semver declarations are passed to the networked
     # dependency installer. Uploaded config/scripts/source are never mounted there.
-    deps=plan['dependencies']
-    if len(deps)>150 or any(not isinstance(k,str) or not isinstance(v,str) or not re.fullmatch(r'(?:@[-a-z0-9_]+/)?[-a-z0-9_.]+',k) or not re.fullmatch(r'[~^]?\d+\.\d+\.\d+',v) for k,v in deps.items()): raise Error('DEPENDENCY_SPEC_REVIEW_REQUIRED')
+    deps=checked_dependencies(plan['dependencies'])
     if (root/'node_modules').exists(): raise Error('PRIVATE_FILE')
-    if online:
-        with tempfile.TemporaryDirectory(prefix='dmt-deps-',dir=root.parent) as d:
-            dep=Path(d);(dep/'package.json').write_text(json.dumps({'name':'dmt-trusted-deps','private':True,'dependencies':deps}))
-            run(dep,'npm install --package-lock-only --ignore-scripts --no-audit --no-fund --fetch-retries=0 --registry=https://registry.npmjs.org/','bridge',180)
-            lock=json.loads((dep/'package-lock.json').read_text())
-            for name,pkg in lock.get('packages',{}).items():
-                if not name: continue
-                resolved=pkg.get('resolved','')
-                if pkg.get('link') or not resolved.startswith('https://registry.npmjs.org/') or not pkg.get('integrity'): raise Error('DEPENDENCY_LOCK_REVIEW_REQUIRED')
-            run(dep,'npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --registry=https://registry.npmjs.org/','bridge',240)
-            shutil.move(str(dep/'node_modules'),str(root/'node_modules'))
-            shutil.copyfile(dep/'package-lock.json',root/'package-lock.trial.json')
-    else:
-        # Offline path uses a trusted image containing only a vetted npm cache.
-        with tempfile.TemporaryDirectory(prefix='dmt-deps-',dir=root.parent) as d:
-            dep=Path(d);(dep/'package.json').write_text(json.dumps({'name':'dmt-trusted-deps','private':True,'dependencies':deps}))
-            run(dep,'cp -a /opt/npm-cache /tmp/npm-cache; npm install --offline --ignore-scripts --no-audit --no-fund','none',240)
-            shutil.move(str(dep/'node_modules'),str(root/'node_modules'))
+    cache_dir=Path(os.environ.get('DMT_DEPENDENCY_CACHE',str(Path.home()/'.cache'/'dmtwebapp-deps'))).resolve()
+    cache_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
+    npm_cache=cache_dir/'npm';npm_cache.mkdir(mode=0o700,exist_ok=True)
+    key=cache_key(deps,image)
+    with (cache_dir/'cache.lock').open('a') as cache_lock:
+        fcntl.flock(cache_lock,fcntl.LOCK_EX)
+        hit=cache_hit(cache_dir,deps,image)
+        if hit is None:
+            # Resolution/install run without student source mounted. Cache is never
+            # exposed to Vite or student scripts; cached modules are copied privately.
+            with tempfile.TemporaryDirectory(prefix='resolve-',dir=cache_dir) as d:
+                dep=Path(d);(dep/'package.json').write_text(json.dumps({'name':'dmt-trusted-deps','private':True,'dependencies':deps}))
+                net='bridge' if online else 'none'
+                flags='--prefer-offline --fetch-retries=1 --fetch-timeout=20000' if online else '--offline'
+                run(dep,'npm install --package-lock-only --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ '+flags,net,480,cache=npm_cache)
+                sha=verified_lock(dep/'package-lock.json',deps)
+                run(dep,'npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ '+flags,net,480,cache=npm_cache)
+                (dep/'READY.json').write_text(json.dumps({'key':key,'lock_sha256':sha}))
+                final=cache_dir/key
+                if final.exists(): raise Error('INVALID_CACHE_ENTRY_REQUIRES_REVIEW')
+                dep.rename(final);hit=final
+        subprocess.run(['cp','-a','--reflink=auto',str(hit/'node_modules'),str(root/'node_modules')],check=True,timeout=120)
+        shutil.copyfile(hit/'package-lock.json',root/'package-lock.trial.json')
     run(root,'./node_modules/.bin/vite build --base=./','none',240)
     return root/'dist'
 
