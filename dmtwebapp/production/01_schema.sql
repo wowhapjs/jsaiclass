@@ -39,5 +39,4 @@ CREATE TABLE IF NOT EXISTS app_browser_data (
 );
 REVOKE ALL ON ALL TABLES IN SCHEMA dmtwebapp FROM PUBLIC;
 GRANT USAGE ON SCHEMA dmtwebapp TO dmtapi,dmtworker;
-GRANT CONNECT ON DATABASE dmtwebapp TO dmtapi,dmtworker;
 COMMIT;
