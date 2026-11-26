@@ -3,7 +3,7 @@ import contextlib,fcntl,json,os,re,select,shutil,socket,socketserver,subprocess,
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'hosting'/'trial'))
-from dependency_cache import checked_dependencies,cache_key,cache_hit,verified_lock
+from dependency_cache import checked_dependencies,cache_key,cache_hit,verified_lock,FINDONE_KEYS,FINDONE_FULL
 from engine import Error
 MAX_CACHE=5*1024**3
 MAX_PROFILES=24
@@ -86,9 +86,28 @@ def install_profile(cache,deps,image,base):
             with tempfile.TemporaryDirectory(prefix='dmt-npm-',dir=os.environ.get('DMT_RELAY_DIR','/tmp')) as relaydir:
                 relay=Path(relaydir);(relay/'relay.cjs').write_text(RELAY)
                 (work/'package.json').write_text(json.dumps({'name':'dmt-shared-deps','private':True,'dependencies':deps}))
+                # Reuse a verified compatible subset lock to avoid resolving the
+                # whole React/Vite graph again when adding a package.
+                candidates=[]
+                for directory in (cache,auto,Path(os.environ.get('DMT_SEED_CACHE',str(cache)))):
+                    for p in directory.glob('[a-f0-9]'*64):
+                        try:
+                            declared=json.loads((p/'package-lock.json').read_text())['packages']['']['dependencies']
+                            if all(deps.get(k)==v for k,v in declared.items()) and cache_hit(directory,declared,image)==p:
+                                candidates.append((len(declared),p))
+                        except (OSError,ValueError,KeyError,TypeError):continue
+                if candidates:
+                    seed=max(candidates,key=lambda x:x[0])[1]
+                    shutil.copyfile(seed/'package-lock.json',work/'package-lock.json')
+                    print('using verified seed lock',flush=True)
+                # The known classroom browser-only profile declares the required
+                # peer packages explicitly. Skip unused optional test peers only
+                # for that profile; all other manifests use normal npm resolution.
+                classroom=set(deps)==FINDONE_KEYS|{'firebase'} and all(deps[k]==FINDONE_FULL[k] for k in FINDONE_KEYS)
+                peer_flags=['--legacy-peer-deps'] if classroom else []
                 def run(args,seconds):
                     name='dmt-resolver-'+uuid.uuid4().hex
-                    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8','--ulimit','fsize=52428800:52428800','--log-driver=none','--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m','--mount',f'type=bind,src={work},dst=/work','--mount',f'type=bind,src={npm},dst=/npm-cache','--mount',f'type=bind,src={relay},dst=/relay,readonly','-w','/work','-e','HOME=/tmp','-e','npm_config_cache=/npm-cache',image,'node','/relay/relay.cjs',*args,'--ignore-scripts','--no-audit','--no-fund','--prefer-offline','--fetch-retries=2','--fetch-timeout=30000','--registry=https://registry.npmjs.org/']
+                    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8','--ulimit','fsize=52428800:52428800','--log-driver=none','--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m','--mount',f'type=bind,src={work},dst=/work','--mount',f'type=bind,src={npm},dst=/npm-cache','--mount',f'type=bind,src={relay},dst=/relay,readonly','-w','/work','-e','HOME=/tmp','-e','npm_config_cache=/npm-cache',image,'node','/relay/relay.cjs',*args,*peer_flags,'--ignore-scripts','--no-audit','--no-fund','--prefer-offline','--fetch-retries=2','--fetch-timeout=30000','--registry=https://registry.npmjs.org/']
                     try:
                         with subprocess.Popen(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL) as proc:
                             start=time.monotonic();last=0
@@ -103,10 +122,12 @@ def install_profile(cache,deps,image,base):
                             if proc.returncode:raise Error('DEPENDENCY_INSTALL_FAILED')
                     finally:subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30,check=False)
                 with registry_relay(relay):
-                    run(['install','--package-lock-only'],480)
+                    print('resolving registry lock',flush=True)
+                    run(['install','--package-lock-only'],600)
                     try:sha=verified_lock(work/'package-lock.json',deps)
                     except ValueError as e:raise Error(str(e)) from e
-                    run(['ci'],480)
+                    print('installing verified registry lock',flush=True)
+                    run(['ci'],600)
                 if verified_lock(work/'package-lock.json',deps)!=sha:raise Error('LOCK_CHANGED')
                 (work/'node_modules/.vite-temp').mkdir(exist_ok=True)
                 (work/'READY.json').write_text(json.dumps({'key':key,'lock_sha256':sha}))
