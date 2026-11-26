@@ -42,10 +42,14 @@ def prepare(lock_path):
                 with archive.open('rb') as fh:
                     if hashlib.file_digest(fh,alg).digest()!=digest:raise RuntimeError('TARBALL_INTEGRITY')
                 pkg.mkdir(parents=True,exist_ok=True)
+                print('EXTRACTING',name,entry['version'],flush=True)
                 with tarfile.open(archive,'r:gz') as tf:
+                    prefix=None
                     for m in tf:
                         path=PurePosixPath(m.name)
-                        if path.is_absolute() or '..' in path.parts or len(path.parts)<1 or path.parts[0]!='package':raise RuntimeError('TARBALL_PATH')
+                        if path.is_absolute() or '..' in path.parts or not path.parts:raise RuntimeError('TARBALL_PATH')
+                        if prefix is None:prefix=path.parts[0]
+                        if path.parts[0]!=prefix:raise RuntimeError('TARBALL_MULTIPLE_ROOTS')
                         if len(path.parts)==1:
                             if not m.isdir():raise RuntimeError('TARBALL_ROOT')
                             continue
