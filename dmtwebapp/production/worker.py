@@ -4,33 +4,43 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'hosting'/'trial'))
 from engine import inspect_and_extract,inspect,verify,Error
 from dependency_cache import checked_dependencies,cache_key,cache_hit,verified_lock,FINDONE_FULL,FINDONE_KEYS
-from db_config import normalize,ConfigError
+from db_config import normalize,ConfigError,detect_embedded
+from auto_cache import install_profile
 from pg import call,DatabaseUnavailable
 
 BASE=Path(os.environ.get('DMT_DATA','/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod'))
 IMAGE=os.environ.get('DMT_IMAGE','node@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb')
 CACHE=Path(os.environ.get('DMT_DEPENDENCY_CACHE',str(BASE/'common')))
-PIPELINE=3
-def profile(deps):
-    deps=checked_dependencies(deps)
-    # Same AI Studio template: use the prevalidated minimal profile. Missing
-    # actually imported modules fail closed rather than installing from source.
-    if deps==FINDONE_FULL:
-        return {k:deps[k] for k in sorted(FINDONE_KEYS)}
+PIPELINE=4
+def profile(deps,root=None):
+    try:deps=checked_dependencies(deps)
+    except ValueError as e:raise Error(str(e)) from e
+    # AI Studio's reviewed template includes many unused tooling packages.
+    # Preserve every newly declared dependency except the known lint-only pair.
+    template=FINDONE_FULL
+    extra=set(deps)-set(template)
+    if all(deps.get(k)==v for k,v in template.items()) and extra <= {'firebase','eslint','@firebase/eslint-plugin-security-rules'}:
+        keys=set(FINDONE_KEYS)|({'firebase'} if 'firebase' in deps else set())
+        if root:
+            for p in root.rglob('*'):
+                if p.is_file() and p.suffix in {'.js','.jsx','.ts','.tsx','.mjs','.cjs','.css'} and p.stat().st_size<512*1024 and not (p.name.startswith('eslint.config.') or '.test.' in p.name):
+                    source=p.read_text(errors='replace')
+                    for k in deps:
+                        if re.search(r"""['"]"""+re.escape(k)+r"""(?:/[^'"]*)?['"]""",source):keys.add(k)
+        return {k:deps[k] for k in sorted(keys)}
     return deps
-def choose_cache(deps):
-    deps=profile(deps)
-    exact=cache_hit(CACHE,deps,IMAGE)
-    if exact: return exact
-    # A strict subset of a verified dependency profile can reuse its packages.
-    for p in sorted(CACHE.glob('[a-f0-9]'*64)):
-        try:
-            lock=json.loads((p/'package-lock.json').read_text())
-            declared=lock['packages']['']['dependencies']
-            if all(declared.get(k)==v for k,v in deps.items()) and cache_hit(CACHE,declared,IMAGE)==p:
-                return p
-        except (OSError,ValueError,KeyError,TypeError): pass
-    raise Error('DEPENDENCY_CACHE_REVIEW_REQUIRED')
+def choose_cache(deps,root=None):
+    deps=profile(deps,root)
+    for directory in (CACHE,CACHE/'auto'):
+        exact=cache_hit(directory,deps,IMAGE)
+        if exact:return exact
+        for p in sorted(directory.glob('[a-f0-9]'*64)):
+            try:
+                lock=json.loads((p/'package-lock.json').read_text())
+                declared=lock['packages']['']['dependencies']
+                if all(declared.get(k)==v for k,v in deps.items()) and cache_hit(directory,declared,IMAGE)==p:return p
+            except (OSError,ValueError,KeyError,TypeError):pass
+    return install_profile(CACHE,deps,IMAGE,BASE)
 def shared_build(root,plan,config):
     if plan['backend']: raise Error('SERVER_BACKEND_REVIEW_REQUIRED')
     mode=config.get('mode','none')
@@ -41,7 +51,7 @@ def shared_build(root,plan,config):
     if plan['framework']=='static':
         return root/'dist' if (root/'dist/index.html').is_file() else root
     if plan['framework']!='vite': raise Error('UNSUPPORTED_FRAMEWORK')
-    cache=choose_cache(plan['dependencies'])
+    cache=choose_cache(plan['dependencies'],root)
     if not (cache/'node_modules/.vite-temp').is_dir(): raise Error('CACHE_NOT_PREPARED')
     if (root/'node_modules').exists(): raise Error('PRIVATE_FILE')
     (root/'node_modules').mkdir()
@@ -94,6 +104,7 @@ def process(job):
             root=inspect_and_extract(src,Path(tmp))
             if sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and p.suffix in {'.js','.ts','.jsx','.tsx','.mjs','.py'})>12*1024**2:raise Error('SOURCE_REVIEW_LIMIT')
             plan=inspect(root)
+            config=detect_embedded(root,plan,config)
             phase(jid,'build')
             out=shared_build(root,plan,config)
             phase(jid,'verify')
