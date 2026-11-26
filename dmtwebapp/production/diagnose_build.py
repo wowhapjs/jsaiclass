@@ -64,7 +64,7 @@ def state(name):
         v=json.loads(r.stdout)
         return {k:v.get(k) for k in ('Status','Running','OOMKilled','Dead','Pid','ExitCode','StartedAt','FinishedAt')}
     except (ValueError,subprocess.TimeoutExpired):return None
-def run(zip_path,log_dir):
+def run(zip_path,log_dir,auto_remove=False):
     if os.getuid()==0:raise RuntimeError('NON_ROOT_REQUIRED')
     log_dir.mkdir(mode=0o700,exist_ok=False)
     os.chmod(log_dir,0o700)
@@ -84,8 +84,9 @@ def run(zip_path,log_dir):
              '--tmpfs',f'/work/node_modules/.vite-temp:rw,nosuid,nodev,size=32m,uid={uid},gid={gid},mode=0700',
              '-w','/work','-e','HOME=/tmp','-e','DEBUG=vite:config,vite:resolve,vite:transform,vite:build,vite:deps']
         for k,v in config.get('env',{}).items():cmd+=['-e',k+'='+v]
+        if auto_remove:cmd.insert(2,'--rm')
         cmd += [IMAGE,'node','--input-type=module','-e',NODE]
-        start=time.monotonic();out('docker_launch',name=name);host_sample(start)
+        start=time.monotonic();out('docker_launch',name=name,auto_remove=auto_remove);host_sample(start)
         proc=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         raw=log_dir/'vite.log';markers=log_dir/'markers.jsonl'
         def drain():
@@ -129,4 +130,4 @@ def run(zip_path,log_dir):
         finally:
             try:subprocess.run(['/usr/bin/docker','rm','-f',name],capture_output=True,timeout=90)
             except subprocess.TimeoutExpired:out('cleanup_timeout')
-if __name__=='__main__':run(Path(sys.argv[1]),Path(sys.argv[2]))
+if __name__=='__main__':run(Path(sys.argv[1]),Path(sys.argv[2]),'--auto-remove' in sys.argv[3:])
