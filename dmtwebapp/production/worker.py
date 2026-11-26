@@ -60,7 +60,7 @@ def shared_build(root,plan,config):
     name='dmt-job-'+uuid.uuid4().hex
     docker=['/usr/bin/docker']
     if os.environ.get('DMT_TRIAL_DOCKER_SUDO')=='1': docker=['/usr/bin/sudo','-n','/usr/bin/docker']
-    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
+    cmd=docker+['run','--rm','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
        '--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8',
        '--ulimit','fsize=52428800:52428800','--ulimit','nofile=512:512','--log-driver=none',
        '--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m',
@@ -70,16 +70,19 @@ def shared_build(root,plan,config):
        '-w','/work','-e','HOME=/tmp']
     for k,v in config.get('env',{}).items():cmd+=['-e',k+'='+v]
     cmd += [IMAGE,'node','--input-type=module','-e','import {build} from "vite"; await build({base:"./",cacheDir:"/tmp/vite-cache",build:{reportCompressedSize:false}})']
+    interrupted=False
     try:
         with subprocess.Popen(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL) as proc:
             start=time.monotonic()
             while proc.poll() is None:
                 time.sleep(.5)
-                if time.monotonic()-start>360 or shutil.disk_usage(BASE).free<3*1024**3:
-                    proc.kill();raise Error('BUILD_RESOURCE_LIMIT')
+                if time.monotonic()-start>600 or shutil.disk_usage(BASE).free<3*1024**3:
+                    interrupted=True;proc.kill();raise Error('BUILD_RESOURCE_LIMIT')
             if proc.returncode: raise Error('ISOLATED_BUILD_FAILED')
     finally:
-        subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20,check=False)
+        if interrupted:
+            try:subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=90,check=False)
+            except subprocess.TimeoutExpired:raise Error('BUILD_CONTAINER_CLEANUP_TIMEOUT')
     return root/'dist'
 
 def phase(jid,stage):
@@ -94,17 +97,17 @@ def process(job):
         if src.stat().st_size!=job['zip_bytes']: raise Error('ZIP_SIZE_MISMATCH')
         sha=hashlib.sha256(src.read_bytes()).hexdigest()
         config=normalize(job.get('public_config'))
-        key=hashlib.sha256(json.dumps({'sha':sha,'config':config,'image':IMAGE,'pipeline':PIPELINE},sort_keys=True).encode()).hexdigest()
-        old=call('find_artifact',{'app':job['app_id'],'key':key})
-        if old:
-            phase(jid,'reuse')
-            p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
-            return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
         with tempfile.TemporaryDirectory(prefix='build-',dir=BASE/'work') as tmp:
             root=inspect_and_extract(src,Path(tmp))
             if sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and p.suffix in {'.js','.ts','.jsx','.tsx','.mjs','.py'})>12*1024**2:raise Error('SOURCE_REVIEW_LIMIT')
             plan=inspect(root)
             config=detect_embedded(root,plan,config)
+            key=hashlib.sha256(json.dumps({'sha':sha,'config':config,'image':IMAGE,'pipeline':PIPELINE},sort_keys=True).encode()).hexdigest()
+            old=call('find_artifact',{'app':job['app_id'],'key':key})
+            if old:
+                phase(jid,'reuse')
+                p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
+                return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
             phase(jid,'build')
             out=shared_build(root,plan,config)
             phase(jid,'verify')
