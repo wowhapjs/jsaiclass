@@ -1,6 +1,8 @@
 """Install registry dependencies in a network-isolated resolver through a registry-only tunnel."""
 import contextlib,fcntl,json,os,re,select,shutil,socket,socketserver,subprocess,tempfile,threading,time,uuid
 from pathlib import Path
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'hosting'/'trial'))
 from dependency_cache import checked_dependencies,cache_key,cache_hit,verified_lock
 from engine import Error
 MAX_CACHE=5*1024**3
@@ -56,7 +58,12 @@ def registry_relay(directory):
         try:yield
         finally:srv.shutdown();thread.join(timeout=3)
 def disk_size(path):
-    return sum(p.lstat().st_size for p in path.rglob('*') if p.is_file() and not p.is_symlink())
+    total=0
+    for p in path.rglob('*'):
+        try:
+            if p.is_file() and not p.is_symlink():total+=p.lstat().st_size
+        except FileNotFoundError:continue
+    return total
 def install_profile(cache,deps,image,base):
     deps=checked_dependencies(deps);auto=cache/'auto'
     if not auto.is_dir():raise Error('AUTO_CACHE_NOT_CONFIGURED')
