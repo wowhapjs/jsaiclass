@@ -105,9 +105,9 @@ def install_profile(cache,deps,image,base):
                 # for that profile; all other manifests use normal npm resolution.
                 classroom=set(deps)==FINDONE_KEYS|{'firebase'} and all(deps[k]==FINDONE_FULL[k] for k in FINDONE_KEYS)
                 peer_flags=['--legacy-peer-deps'] if classroom else []
-                def run(args,seconds):
+                def run(args,seconds,offline=False):
                     name='dmt-resolver-'+uuid.uuid4().hex
-                    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8','--ulimit','fsize=52428800:52428800','--log-driver=none','--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m','--mount',f'type=bind,src={work},dst=/work','--mount',f'type=bind,src={npm},dst=/npm-cache','--mount',f'type=bind,src={relay},dst=/relay,readonly','-w','/work','-e','HOME=/tmp','-e','npm_config_cache=/npm-cache',image,'node','/relay/relay.cjs',*args,*peer_flags,'--ignore-scripts','--no-audit','--no-fund','--prefer-offline','--fetch-retries=2','--fetch-timeout=30000','--registry=https://registry.npmjs.org/']
+                    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8','--ulimit','fsize=52428800:52428800','--log-driver=none','--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m','--mount',f'type=bind,src={work},dst=/work','--mount',f'type=bind,src={npm},dst=/npm-cache','--mount',f'type=bind,src={relay},dst=/relay,readonly','-w','/work','-e','HOME=/tmp','-e','npm_config_cache=/npm-cache',image,'node','/relay/relay.cjs',*args,*peer_flags,*(['--offline'] if offline else []),'--ignore-scripts','--no-audit','--no-fund','--prefer-offline','--maxsockets=4','--fetch-retries=2','--fetch-timeout=60000','--registry=https://registry.npmjs.org/']
                     try:
                         with subprocess.Popen(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL) as proc:
                             start=time.monotonic();last=0
@@ -120,14 +120,32 @@ def install_profile(cache,deps,image,base):
                                     if disk_size(auto)>MAX_CACHE:
                                         proc.kill();raise Error('DEPENDENCY_CACHE_LIMIT')
                             if proc.returncode:raise Error('DEPENDENCY_INSTALL_FAILED')
-                    finally:subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30,check=False)
+                    finally:
+                        try:subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=90,check=False)
+                        except subprocess.TimeoutExpired:raise Error('DEPENDENCY_CONTAINER_CLEANUP_TIMEOUT')
                 with registry_relay(relay):
-                    print('resolving registry lock',flush=True)
-                    run(['install','--package-lock-only'],600)
-                    try:sha=verified_lock(work/'package-lock.json',deps)
-                    except ValueError as e:raise Error(str(e)) from e
-                    print('installing verified registry lock',flush=True)
-                    run(['ci'],600)
+                    pending=auto/'locks';pending.mkdir(mode=0o750,exist_ok=True)
+                    saved=pending/(key+'.json')
+                    if saved.is_file():
+                        try:sha=verified_lock(saved,deps);shutil.copyfile(saved,work/'package-lock.json')
+                        except (ValueError,OSError) as e:raise Error('INVALID_SAVED_LOCK') from e
+                        print('resuming verified registry lock',flush=True)
+                    else:
+                        print('resolving registry lock from local npm cache',flush=True)
+                        try:run(['install','--package-lock-only'],600,offline=True)
+                        except Error as e:
+                            if str(e)!='DEPENDENCY_INSTALL_FAILED':raise
+                            print('fetching missing registry metadata',flush=True)
+                            run(['install','--package-lock-only'],900)
+                        try:sha=verified_lock(work/'package-lock.json',deps)
+                        except ValueError as e:raise Error(str(e)) from e
+                        staged=pending/(key+'.tmp');shutil.copyfile(work/'package-lock.json',staged);staged.replace(saved)
+                    print('installing verified registry lock from local npm cache',flush=True)
+                    try:run(['ci'],600,offline=True)
+                    except Error as e:
+                        if str(e)!='DEPENDENCY_INSTALL_FAILED':raise
+                        print('fetching missing registry tarballs',flush=True)
+                        run(['ci'],1200)
                 if verified_lock(work/'package-lock.json',deps)!=sha:raise Error('LOCK_CHANGED')
                 (work/'node_modules/.vite-temp').mkdir(exist_ok=True)
                 (work/'READY.json').write_text(json.dumps({'key':key,'lock_sha256':sha}))
