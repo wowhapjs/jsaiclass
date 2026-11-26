@@ -76,7 +76,7 @@ def install_profile(cache,deps,image,base):
         with tempfile.TemporaryDirectory(prefix='resolve-',dir=auto) as tmp:
             root=Path(tmp);work=root/'work';work.mkdir()
             # Unix socket path must fit the OS limit; short private /tmp directory.
-            with tempfile.TemporaryDirectory(prefix='dmt-npm-') as relaydir:
+            with tempfile.TemporaryDirectory(prefix='dmt-npm-',dir=os.environ.get('DMT_RELAY_DIR','/tmp')) as relaydir:
                 relay=Path(relaydir);(relay/'relay.cjs').write_text(RELAY)
                 (work/'package.json').write_text(json.dumps({'name':'dmt-shared-deps','private':True,'dependencies':deps}))
                 def run(args,seconds):
