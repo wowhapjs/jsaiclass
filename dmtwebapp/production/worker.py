@@ -4,33 +4,43 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'hosting'/'trial'))
 from engine import inspect_and_extract,inspect,verify,Error
 from dependency_cache import checked_dependencies,cache_key,cache_hit,verified_lock,FINDONE_FULL,FINDONE_KEYS
-from db_config import normalize,ConfigError
+from db_config import normalize,ConfigError,detect_embedded
+from auto_cache import install_profile
 from pg import call,DatabaseUnavailable
 
 BASE=Path(os.environ.get('DMT_DATA','/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod'))
 IMAGE=os.environ.get('DMT_IMAGE','node@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb')
 CACHE=Path(os.environ.get('DMT_DEPENDENCY_CACHE',str(BASE/'common')))
-PIPELINE=3
-def profile(deps):
-    deps=checked_dependencies(deps)
-    # Same AI Studio template: use the prevalidated minimal profile. Missing
-    # actually imported modules fail closed rather than installing from source.
-    if deps==FINDONE_FULL:
-        return {k:deps[k] for k in sorted(FINDONE_KEYS)}
+PIPELINE=4
+def profile(deps,root=None):
+    try:deps=checked_dependencies(deps)
+    except ValueError as e:raise Error(str(e)) from e
+    # AI Studio's reviewed template includes many unused tooling packages.
+    # Preserve every newly declared dependency except the known lint-only pair.
+    template=FINDONE_FULL
+    extra=set(deps)-set(template)
+    if all(deps.get(k)==v for k,v in template.items()) and extra <= {'firebase','eslint','@firebase/eslint-plugin-security-rules'}:
+        keys=set(FINDONE_KEYS)|({'firebase'} if 'firebase' in deps else set())
+        if root:
+            for p in root.rglob('*'):
+                if p.is_file() and p.suffix in {'.js','.jsx','.ts','.tsx','.mjs','.cjs','.css'} and p.stat().st_size<512*1024 and not (p.name.startswith('eslint.config.') or '.test.' in p.name):
+                    source=p.read_text(errors='replace')
+                    for k in deps:
+                        if re.search(r"""['"]"""+re.escape(k)+r"""(?:/[^'"]*)?['"]""",source):keys.add(k)
+        return {k:deps[k] for k in sorted(keys)}
     return deps
-def choose_cache(deps):
-    deps=profile(deps)
-    exact=cache_hit(CACHE,deps,IMAGE)
-    if exact: return exact
-    # A strict subset of a verified dependency profile can reuse its packages.
-    for p in sorted(CACHE.glob('[a-f0-9]'*64)):
-        try:
-            lock=json.loads((p/'package-lock.json').read_text())
-            declared=lock['packages']['']['dependencies']
-            if all(declared.get(k)==v for k,v in deps.items()) and cache_hit(CACHE,declared,IMAGE)==p:
-                return p
-        except (OSError,ValueError,KeyError,TypeError): pass
-    raise Error('DEPENDENCY_CACHE_REVIEW_REQUIRED')
+def choose_cache(deps,root=None):
+    deps=profile(deps,root)
+    for directory in (CACHE,CACHE/'auto'):
+        exact=cache_hit(directory,deps,IMAGE)
+        if exact:return exact
+        for p in sorted(directory.glob('[a-f0-9]'*64)):
+            try:
+                lock=json.loads((p/'package-lock.json').read_text())
+                declared=lock['packages']['']['dependencies']
+                if all(declared.get(k)==v for k,v in deps.items()) and cache_hit(directory,declared,IMAGE)==p:return p
+            except (OSError,ValueError,KeyError,TypeError):pass
+    return install_profile(CACHE,deps,IMAGE,BASE)
 def shared_build(root,plan,config):
     if plan['backend']: raise Error('SERVER_BACKEND_REVIEW_REQUIRED')
     mode=config.get('mode','none')
@@ -41,7 +51,7 @@ def shared_build(root,plan,config):
     if plan['framework']=='static':
         return root/'dist' if (root/'dist/index.html').is_file() else root
     if plan['framework']!='vite': raise Error('UNSUPPORTED_FRAMEWORK')
-    cache=choose_cache(plan['dependencies'])
+    cache=choose_cache(plan['dependencies'],root)
     if not (cache/'node_modules/.vite-temp').is_dir(): raise Error('CACHE_NOT_PREPARED')
     if (root/'node_modules').exists(): raise Error('PRIVATE_FILE')
     (root/'node_modules').mkdir()
@@ -50,7 +60,7 @@ def shared_build(root,plan,config):
     name='dmt-job-'+uuid.uuid4().hex
     docker=['/usr/bin/docker']
     if os.environ.get('DMT_TRIAL_DOCKER_SUDO')=='1': docker=['/usr/bin/sudo','-n','/usr/bin/docker']
-    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
+    cmd=docker+['run','--rm','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
        '--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8',
        '--ulimit','fsize=52428800:52428800','--ulimit','nofile=512:512','--log-driver=none',
        '--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m',
@@ -60,16 +70,19 @@ def shared_build(root,plan,config):
        '-w','/work','-e','HOME=/tmp']
     for k,v in config.get('env',{}).items():cmd+=['-e',k+'='+v]
     cmd += [IMAGE,'node','--input-type=module','-e','import {build} from "vite"; await build({base:"./",cacheDir:"/tmp/vite-cache",build:{reportCompressedSize:false}})']
+    interrupted=False
     try:
         with subprocess.Popen(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL) as proc:
             start=time.monotonic()
             while proc.poll() is None:
                 time.sleep(.5)
-                if time.monotonic()-start>360 or shutil.disk_usage(BASE).free<3*1024**3:
-                    proc.kill();raise Error('BUILD_RESOURCE_LIMIT')
+                if time.monotonic()-start>600 or shutil.disk_usage(BASE).free<3*1024**3:
+                    interrupted=True;proc.kill();raise Error('BUILD_RESOURCE_LIMIT')
             if proc.returncode: raise Error('ISOLATED_BUILD_FAILED')
     finally:
-        subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20,check=False)
+        if interrupted:
+            try:subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=90,check=False)
+            except subprocess.TimeoutExpired:raise Error('BUILD_CONTAINER_CLEANUP_TIMEOUT')
     return root/'dist'
 
 def phase(jid,stage):
@@ -84,16 +97,17 @@ def process(job):
         if src.stat().st_size!=job['zip_bytes']: raise Error('ZIP_SIZE_MISMATCH')
         sha=hashlib.sha256(src.read_bytes()).hexdigest()
         config=normalize(job.get('public_config'))
-        key=hashlib.sha256(json.dumps({'sha':sha,'config':config,'image':IMAGE,'pipeline':PIPELINE},sort_keys=True).encode()).hexdigest()
-        old=call('find_artifact',{'app':job['app_id'],'key':key})
-        if old:
-            phase(jid,'reuse')
-            p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
-            return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
         with tempfile.TemporaryDirectory(prefix='build-',dir=BASE/'work') as tmp:
             root=inspect_and_extract(src,Path(tmp))
             if sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and p.suffix in {'.js','.ts','.jsx','.tsx','.mjs','.py'})>12*1024**2:raise Error('SOURCE_REVIEW_LIMIT')
             plan=inspect(root)
+            config=detect_embedded(root,plan,config)
+            key=hashlib.sha256(json.dumps({'sha':sha,'config':config,'image':IMAGE,'pipeline':PIPELINE},sort_keys=True).encode()).hexdigest()
+            old=call('find_artifact',{'app':job['app_id'],'key':key})
+            if old:
+                phase(jid,'reuse')
+                p=BASE/'artifacts'/old['artifact']/'web';info=verify(p)
+                return call('finish_job',{'id':jid,'status':'ready','artifact':old['artifact'],'bytes':info['bytes'],'sha':sha,'key':key,'database':old['database'],'config':config})
             phase(jid,'build')
             out=shared_build(root,plan,config)
             phase(jid,'verify')

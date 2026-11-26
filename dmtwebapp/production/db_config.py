@@ -35,3 +35,17 @@ def normalize(value):
             origins+=['https://'+u.netloc,'wss://'+u.netloc]
         origins+=['https://*.googleapis.com','https://*.firebaseapp.com','https://*.firebaseio.com','wss://*.firebaseio.com','https://*.firebasedatabase.app','wss://*.firebasedatabase.app','https://*.gstatic.com']
     return {'mode':mode,'env':env,'origins':origins}
+
+# Google AI Studio exports a public web client configuration in this file.
+# Do not infer secrets or copy unknown keys into environment variables.
+def detect_embedded(root,plan,config):
+    if config.get('mode','none')!='none' or 'firebase' not in plan.get('db_dependencies',[]):return config
+    p=root/'firebase-applet-config.json'
+    if not p.is_file() or p.is_symlink() or p.stat().st_size>32768:return config
+    try:value=json.loads(p.read_text())
+    except (ValueError,UnicodeError):raise ConfigError('DB_CONFIG_INVALID')
+    if not isinstance(value,dict):raise ConfigError('DB_CONFIG_INVALID')
+    allowed={'apiKey','projectId','authDomain','storageBucket','messagingSenderId','appId','databaseURL','measurementId','firestoreDatabaseId','oAuthClientId','recaptchaSiteKey'}
+    if set(value)-allowed or any(not isinstance(v,str) or len(v)>4096 or re.search(r'(?i)(service.role|sb_secret_|-----BEGIN|sk_live_)',v) for v in value.values()):raise ConfigError('PRIVATE_OR_UNKNOWN_DB_KEY')
+    keys={'apiKey':'API_KEY','projectId':'PROJECT_ID','authDomain':'AUTH_DOMAIN','storageBucket':'STORAGE_BUCKET','messagingSenderId':'MESSAGING_SENDER_ID','appId':'APP_ID','databaseURL':'DATABASE_URL','measurementId':'MEASUREMENT_ID'}
+    return normalize({'mode':'firebase','env':{'VITE_FIREBASE_'+keys[k]:v for k,v in value.items() if k in keys and v}})
