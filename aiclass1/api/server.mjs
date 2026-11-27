@@ -9,7 +9,7 @@ const dbPassword=process.env.PGPASSWORD_FILE?readFileSync(process.env.PGPASSWORD
 const app=Fastify({logger:true,bodyLimit:16384}),db=new pg.Pool({host:process.env.PGHOST||'db',user:process.env.PGUSER||'aiclassapp',database:process.env.PGDATABASE||'aiclass1',password:dbPassword,max:5});
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const error=(r,n,c)=>r.code(n).send({error:c});
-const valid=x=>/^(?:[1-9]|1[0-4])$/.test(String(x))?Number(x):null;
+const valid=x=>/^(?:[1-9]|1[0-8])$/.test(String(x))?Number(x):null;
 const normalize=s=>{if(typeof s!=='string')return null;let p=s.replace(/[\s()\-]/g,'');if(/^0[0-9]{9}$/.test(p))p='+250'+p.slice(1);else if(/^7[0-9]{8}$/.test(p))p='+250'+p;else if(/^2507[0-9]{8}$/.test(p))p='+'+p;return /^\+2507[0-9]{8}$/.test(p)?p:null};
 const sid=req=>(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('aiclass1_sid='))?.split('=')[1];
 const cookie=(v,age)=>'aiclass1_sid='+v+'; Path=/aiclass1; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -29,8 +29,8 @@ app.get('/api/videos/:id/comments',{preHandler:auth},async(q,r)=>{if(!valid(q.pa
 app.post('/api/videos/:id/comments',{preHandler:auth},async(q,r)=>{const id=valid(q.params.id),body=q.body?.body;if(!id)return error(r,404,'NOT_FOUND');if(typeof body!=='string'||!body.trim()||body.trim().length>500)return error(r,400,'INVALID_COMMENT');if((await db.query('SELECT comments_enabled FROM event_config WHERE id=1')).rows[0]?.comments_enabled===false)return error(r,403,'COMMENTS_DISABLED');let parent=null;if(q.body?.parentId!=null){const p=(await db.query('SELECT id FROM comments WHERE id=$1 AND video_id=$2 AND deleted_at IS NULL',[q.body.parentId,id])).rows[0];if(!p)return error(r,400,'INVALID_PARENT');parent=p.id}const a=(await db.query('INSERT INTO comments(video_id,participant_id,parent_id,body) VALUES($1,$2,$3,$4) RETURNING id,body,parent_id AS "parentId",created_at AS "createdAt"',[id,q.user.id,parent,body.trim()])).rows[0];return r.code(201).send({comment:{...a,author:q.user.display_name,mine:true}})});
 app.delete('/api/comments/:id',{preHandler:auth},async(q,r)=>{if(!/^\d+$/.test(q.params.id))return error(r,400,'INVALID_ID');const x=await db.query("UPDATE comments SET deleted_at=now(),body='' WHERE id=$1 AND participant_id=$2 AND deleted_at IS NULL RETURNING id",[q.params.id,q.user.id]);if(!x.rows.length)return error(r,404,'NOT_FOUND');return {ok:true}});
 app.post('/api/progress',{preHandler:auth},async(q,r)=>{if(!valid(q.body?.videoId))return error(r,400,'INVALID_VIDEO');await db.query('INSERT INTO video_progress(participant_id,last_video_id) VALUES($1,$2) ON CONFLICT(participant_id) DO UPDATE SET last_video_id=excluded.last_video_id,updated_at=now()',[q.user.id,q.body.videoId]);return {ok:true}});
-// All 14 works use private, authenticated, read-only media copies to avoid Drive-origin startup delays.
-const localVideoIds=new Set([1,2,3,4,5,6,7,8,9,10,11,12,13,14]);
+// All 18 works use private, authenticated, read-only media copies to avoid Drive-origin startup delays.
+const localVideoIds=new Set(Array.from({length:18},(_,i)=>i+1));
 const localMediaDir=process.env.SITE_MEDIA_DIR||'/media/aiclass1';
 const safeUrl=u=>{try{const x=new URL(u);return x.protocol==='https:'&&(x.hostname==='flow-content.google'||x.hostname==='drive.usercontent.google.com'||x.hostname.endsWith('.googleusercontent.com'))}catch{return false}};
 async function source(id){const v=(await db.query('SELECT * FROM videos WHERE id=$1',[id])).rows[0];if(!v)return null;if(v.source_type==='DRIVE')return localVideoIds.has(id)
