@@ -26,16 +26,16 @@ test('fully fetches N+1 then N+2 and uses prefetched bytes at navigation',async(
  x.preloader.dispose();
  assert.equal(x.revoked.length,3);
 });
-test('new Product 14 preloads 1 and 2, while 13 preloads 14 then 1',async()=>{
- const x=make();x.preloader.enter(13);
- assert.deepEqual(await x.preloader.prepare(13),[14,1]);
- assert.deepEqual(x.calls.map(c=>c.url),['/aiclass1/media/14','/aiclass1/media/1']);
- x.preloader.enter(14);
- assert.deepEqual(await x.preloader.prepare(14),[1,2]);
- assert.deepEqual(x.calls.map(c=>c.url),['/aiclass1/media/14','/aiclass1/media/1','/aiclass1/media/2']);
+test('new Product 18 preloads 1 and 2, while 17 preloads 18 then 1',async()=>{
+ const x=make();x.preloader.enter(17);
+ assert.deepEqual(await x.preloader.prepare(17),[18,1]);
+ assert.deepEqual(x.calls.map(c=>c.url),['/aiclass1/media/18','/aiclass1/media/1']);
+ x.preloader.enter(18);
+ assert.deepEqual(await x.preloader.prepare(18),[1,2]);
+ assert.deepEqual(x.calls.map(c=>c.url),['/aiclass1/media/18','/aiclass1/media/1','/aiclass1/media/2']);
  assert.equal(x.preloader.enter(1),'blob:reel/2');
  assert.deepEqual(await x.preloader.prepare(1),[2,3]);
- assert.deepEqual(x.preloader.getPreparedIds(),[1,2,3,14]);
+ assert.deepEqual(x.preloader.getPreparedIds(),[1,2,3,18]);
  x.preloader.dispose();
 });
 test('fast swipes abort obsolete downloads without storing stale media',async()=>{
@@ -91,8 +91,8 @@ test('finishing an in-flight next work after swiping into it triggers autoplay h
  preloader.dispose();
 });
 test('cache pruning retains wrap-around previous and next works',async()=>{
- const x=make();x.preloader.enter(14);
- assert.deepEqual(await x.preloader.prepare(14),[1,2]);
+ const x=make();x.preloader.enter(18);
+ assert.deepEqual(await x.preloader.prepare(18),[1,2]);
  assert.deepEqual(x.preloader.getPreparedIds(),[1,2]);
  x.preloader.enter(1);
  assert.deepEqual(await x.preloader.prepare(1),[2,3]);
