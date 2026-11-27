@@ -8,6 +8,9 @@ from db_config import normalize,ConfigError,detect_embedded
 from auto_cache import install_profile
 from pg import call,DatabaseUnavailable
 from build_logging import BuildLog,NODE
+from build_guard import sample,reasons,reconcile,docker_cmd
+NEEDS_RECONCILE=False
+BUILD_TIMEOUT=1200
 
 BASE=Path(os.environ.get('DMT_DATA','/var/lib/web-manager/site-media/jsaiclass/dmtwebapp-prod'))
 IMAGE=os.environ.get('DMT_IMAGE','node@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb')
@@ -62,9 +65,9 @@ def shared_build(root,plan,config,log=None):
     uid,gid=os.getuid(),os.getgid()
     if uid==0: raise Error('NON_ROOT_WORKER_REQUIRED')
     name='dmt-job-'+uuid.uuid4().hex
-    docker=['/usr/bin/docker']
-    if os.environ.get('DMT_TRIAL_DOCKER_SUDO')=='1': docker=['/usr/bin/sudo','-n','/usr/bin/docker']
-    cmd=docker+['run','--rm','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
+    global NEEDS_RECONCILE
+    docker=docker_cmd()
+    cmd=docker+['run','--name',name,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
        '--security-opt=no-new-privileges','--pids-limit=128','--memory=384m','--memory-swap=768m','--cpus=.8',
        '--ulimit','fsize=52428800:52428800','--ulimit','nofile=512:512','--log-driver=none',
        '--user',f'{uid}:{gid}','--tmpfs','/tmp:rw,nosuid,nodev,size=128m',
@@ -75,36 +78,45 @@ def shared_build(root,plan,config,log=None):
     for k,v in config.get('env',{}).items():cmd+=['-e',k+'='+v]
     if log:cmd+=['-e','DEBUG=vite:resolve,vite:transform,vite:build,vite:deps']
     cmd += [IMAGE,'node','--input-type=module','-e',NODE if log else 'import {build} from "vite"; await build({base:"./",cacheDir:"/tmp/vite-cache",build:{reportCompressedSize:false}})']
-    interrupted=False;monitor=None;reader=None
+    interrupted=False;monitor=None;reader=None;proc=None
     try:
-        if log:log.emit('docker_launch',container=name,auto_remove=True,cpu=.8,memory_mb=384,timeout_s=600)
-        with subprocess.Popen(cmd,stdout=subprocess.PIPE if log else subprocess.DEVNULL,stderr=subprocess.STDOUT if log else subprocess.DEVNULL) as proc:
-            start=time.monotonic()
-            if log:
-                log.emit('docker_cli_started',pid=proc.pid)
-                reader=threading.Thread(target=log.drain,args=(proc.stdout,),daemon=True);reader.start()
-                monitor=threading.Thread(target=log.monitor,args=(docker,name),daemon=True);monitor.start()
-            while proc.poll() is None:
-                time.sleep(.5)
-                elapsed=time.monotonic()-start;free=shutil.disk_usage(BASE).free
-                if elapsed>600 or free<3*1024**3:
-                    if log:log.emit('build_limit',reason='wall_timeout' if elapsed>600 else 'disk_reserve',seconds=round(elapsed,2),disk_free=free)
-                    interrupted=True;proc.kill();raise Error('BUILD_RESOURCE_LIMIT')
-            if log:log.emit('docker_cli_exit',returncode=proc.returncode,seconds=round(time.monotonic()-start,2))
-            if proc.returncode: raise Error('ISOLATED_BUILD_FAILED')
+        if log:log.emit('docker_launch',container=name,auto_remove=False,cpu=.8,memory_mb=384,timeout_s=BUILD_TIMEOUT)
+        start=time.monotonic()
+        proc=subprocess.Popen(cmd,stdout=subprocess.PIPE if log else subprocess.DEVNULL,stderr=subprocess.STDOUT if log else subprocess.DEVNULL)
+        if log:
+            log.emit('docker_cli_started',pid=proc.pid)
+            reader=threading.Thread(target=log.drain,args=(proc.stdout,),daemon=True);reader.start()
+            monitor=threading.Thread(target=log.monitor,args=(docker,name),daemon=True);monitor.start()
+        while proc.poll() is None:
+            time.sleep(.5)
+            elapsed=time.monotonic()-start;free=shutil.disk_usage(BASE).free
+            if elapsed>BUILD_TIMEOUT or free<3*1024**3:
+                if log:log.emit('build_limit',reason='wall_timeout' if elapsed>BUILD_TIMEOUT else 'disk_reserve',seconds=round(elapsed,2),disk_free=free)
+                interrupted=True
+                raise Error('BUILD_WALL_TIMEOUT' if elapsed>BUILD_TIMEOUT else 'DISK_RESERVE_LIMIT')
+        if log:log.emit('docker_cli_exit',returncode=proc.returncode,seconds=round(time.monotonic()-start,2),state=log.state(docker,name))
+        if proc.returncode: raise Error('ISOLATED_BUILD_FAILED')
     finally:
         if log:
             log.stop.set()
-            if reader:reader.join(timeout=3)
             if monitor:monitor.join(timeout=9)
-        if interrupted:
+        # Explicit removal retains exit/OOM state until observed. Do not replace the
+        # actual build error with a cleanup timeout or block forever on a D-state CLI.
+        if proc is not None:
             if log:log.emit('docker_cleanup_start',container=name)
             try:
-                result=subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=90,check=False)
-                if log:log.emit('docker_cleanup_exit',returncode=result.returncode)
-            except subprocess.TimeoutExpired:
+                r=subprocess.run(docker+['rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=90,check=False)
+                if r.returncode:NEEDS_RECONCILE=True
+                if log:log.emit('docker_cleanup_exit',returncode=r.returncode)
+            except (OSError,subprocess.TimeoutExpired):
+                NEEDS_RECONCILE=True
                 if log:log.emit('docker_cleanup_timeout')
-                raise Error('BUILD_CONTAINER_CLEANUP_TIMEOUT')
+            if proc.poll() is None:
+                NEEDS_RECONCILE=True
+                proc.kill()
+                try:proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:pass
+        if reader:reader.join(timeout=3)
     return root/'dist'
 
 def phase(jid,stage):
@@ -163,17 +175,49 @@ def process(job):
         code=str(exc) if isinstance(exc,(Error,ConfigError)) else 'BUILD_OR_ZIP_FAILED'
         if log:log.emit('job_failed',error=code[:100] if re.fullmatch(r'[A-Z0-9_]+',code) else 'BUILD_OR_ZIP_FAILED')
         return call('finish_job',{'id':jid,'status':'failed','error':code[:100]})
+def run_job(job):
+    stop=threading.Event()
+    def beat():
+        while not stop.wait(30):
+            try:call('heartbeat_job',{'id':job['id']})
+            except Exception:print('DMT_HEARTBEAT_UNAVAILABLE',flush=True)
+    t=threading.Thread(target=beat,daemon=True);t.start()
+    try:return process(job)
+    finally:stop.set();t.join(timeout=1)
+
 def main():
+    global NEEDS_RECONCILE
     import fcntl
     with (BASE/'work/worker.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        recover=True;good=0;last_notice=0
         while True:
             try:
+                if recover or NEEDS_RECONCILE:
+                    reconcile(BASE)
+                    NEEDS_RECONCILE=False
+                    if recover:
+                        print('DMT_RECOVERY '+json.dumps(call('recover_jobs')),flush=True);recover=False
+                queue=call('queued_jobs')
+                if not queue.get('queued') or queue.get('paused'):
+                    good=0;time.sleep(5);continue
+                metrics=sample(BASE);blocked=reasons(metrics)
+                if blocked:
+                    good=0
+                    if time.monotonic()-last_notice>=30:
+                        print('DMT_CAPACITY '+json.dumps({'blocked':blocked,'metrics':metrics}),flush=True)
+                        call('capacity_wait');last_notice=time.monotonic()
+                    time.sleep(15);continue
+                good+=1
+                if good<2:time.sleep(3);continue
+                good=0
+                print('DMT_CAPACITY '+json.dumps({'admitted':True,'metrics':metrics}),flush=True)
                 job=call('claim_job')
                 if job.get('id'):
-                    start=time.monotonic();result=process(job)
+                    start=time.monotonic();result=run_job(job)
                     print('job',job['id'],round(time.monotonic()-start,2),result.get('error','processed'),flush=True)
                 else: time.sleep(3)
             except Exception:
-                print('worker retry',flush=True);time.sleep(3)
+                recover=True;good=0
+                print('worker retry / recovery pending',flush=True);time.sleep(15)
 if __name__=='__main__':main()
