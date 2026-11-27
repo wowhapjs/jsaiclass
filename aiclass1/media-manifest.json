@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "mediaDir": "/var/lib/web-manager/site-media/jsaiclass/aiclass1",
-  "source": "Authenticated Google Drive MP4s stored privately for low-latency playback; Products 10 and 14 faststart remuxed; Drive originals unchanged.",
+  "source": "Authenticated Google Drive MP4s stored privately for low-latency playback; MP4 faststart remux applied where necessary; Drive originals unchanged.",
   "entries": [
     {
       "id": 1,
@@ -114,6 +114,38 @@
       "file": "product-14.mp4",
       "bytes": 3415828,
       "sha256": "28cbb33530af8602b753f62e598603a8db2b7495b3faa9076d15f7dfca80ab40"
+    },
+    {
+      "id": 15,
+      "title": "Product 15",
+      "driveId": "1zsizB3GYDER3zSeiIUw5GNS2JTq7cybq",
+      "file": "product-15.mp4",
+      "bytes": 2281507,
+      "sha256": "28cf70227e9e8a8e8f99fcc5ef35cf0fc6a6edf4daec0edce7bb20c662ec6bac"
+    },
+    {
+      "id": 16,
+      "title": "Product 16",
+      "driveId": "19YrmyBh8y2WE9ADuKdSdeidEPZ54cZA_",
+      "file": "product-16.mp4",
+      "bytes": 1482715,
+      "sha256": "008ed90837547efa1516987050901e58e57774794c21ad1d73d3028c53cd9c09"
+    },
+    {
+      "id": 17,
+      "title": "Product 17",
+      "driveId": "1IZukMJjxCS2_YL74SBs3qnPSdnZqhEXw",
+      "file": "product-17.mp4",
+      "bytes": 1072265,
+      "sha256": "98c8b5c81872681444feaf29b9337ac8b2d41a9b3fcf86ebc10fb951e28ca219"
+    },
+    {
+      "id": 18,
+      "title": "Product 18",
+      "driveId": "1LN3ZIt5DBXCw_ai7yCWEJOGIBP88cxlX",
+      "file": "product-18.mp4",
+      "bytes": 903053,
+      "sha256": "3a06d0f92defff24247d0eb6e9b3fe4f08e1722f8f7c5d4f403a39274497eaac"
     }
   ]
 }
