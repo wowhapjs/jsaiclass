@@ -217,7 +217,8 @@ def main():
                     start=time.monotonic();result=run_job(job)
                     print('job',job['id'],round(time.monotonic()-start,2),result.get('error','processed'),flush=True)
                 else: time.sleep(3)
-            except Exception:
+            except Exception as exc:
                 recover=True;good=0
-                print('worker retry / recovery pending',flush=True);time.sleep(15)
+                code=str(exc) if isinstance(exc,(Error,DatabaseUnavailable)) and re.fullmatch(r'[A-Z0-9_]+',str(exc)) else type(exc).__name__
+                print('DMT_WORKER_RETRY '+code,flush=True);time.sleep(15)
 if __name__=='__main__':main()
